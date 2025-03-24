@@ -58,9 +58,6 @@ export default function DocumentSign() {
   
   // 페이지 로드 시 서명 상태 초기화
   useEffect(() => {
-    // 서명 상태 초기화
-    setSignedPositions({});
-    
     // 이미지 로딩 상태 초기화
     setImageErrorShown({});
 
@@ -68,26 +65,64 @@ export default function DocumentSign() {
     // 여기서는 샘플 데이터를 사용
     const loadUserDocuments = async () => {
       try {
-        // 세션 스토리지에서 이전에 업로드한 문서가 있는지 확인
-        const uploadedDocuments = sessionStorage.getItem('uploadedDocuments');
-        if (uploadedDocuments) {
-          const parsedDocs = JSON.parse(uploadedDocuments);
-          if (Array.isArray(parsedDocs) && parsedDocs.length > 0) {
-            // 업로드된 문서가 있으면 사용
-            setDocuments(parsedDocs.map((doc, index) => ({
-              ...doc,
-              id: index + 1,
-              type: 'image',
-              signaturePositions: doc.signaturePositions || [
-                { id: `auto-${index}-1`, x: 100, y: 300, width: 150, height: 60, signed: false }
-              ]
-            })));
-            console.log('업로드된 문서를 로드했습니다:', parsedDocs);
-          } else {
-            // 업로드된 문서가 없으면 샘플 데이터 사용
-            console.log('업로드된 문서가 없어 샘플 데이터를 사용합니다');
+        // 세션 스토리지에서 이전에 서명된 문서가 있는지 확인
+        const savedSignedDocuments = sessionStorage.getItem('signedDocuments');
+        let userDocs = initialSampleDocuments;
+        let loadedSignedPositions: Record<string, boolean> = {};
+        let hadSavedData = false;
+
+        // 세션 스토리지에서 서명된 문서 데이터가 있으면 복원
+        if (savedSignedDocuments) {
+          try {
+            const parsedSignedDocs = JSON.parse(savedSignedDocuments);
+            if (Array.isArray(parsedSignedDocs) && parsedSignedDocs.length > 0) {
+              console.log('이전에 서명한 문서 데이터 복원:', parsedSignedDocs);
+              userDocs = parsedSignedDocs;
+              
+              // 서명 위치 상태 복원
+              parsedSignedDocs.forEach(doc => {
+                if (doc.signaturePositions) {
+                  doc.signaturePositions.forEach((pos: { id: string; signed?: boolean }) => {
+                    if (pos.signed) {
+                      loadedSignedPositions[pos.id] = true;
+                    }
+                  });
+                }
+              });
+              
+              hadSavedData = true;
+            }
+          } catch (parseErr) {
+            console.error('저장된 서명 문서 파싱 오류:', parseErr);
           }
         }
+        
+        // 세션 스토리지에서 이전에 업로드한 문서가 있고 서명 데이터가 없는 경우
+        if (!hadSavedData) {
+          const uploadedDocuments = sessionStorage.getItem('uploadedDocuments');
+          if (uploadedDocuments) {
+            const parsedDocs = JSON.parse(uploadedDocuments);
+            if (Array.isArray(parsedDocs) && parsedDocs.length > 0) {
+              // 업로드된 문서가 있으면 사용
+              userDocs = parsedDocs.map((doc, index) => ({
+                ...doc,
+                id: index + 1,
+                type: 'image',
+                signaturePositions: doc.signaturePositions || [
+                  { id: `auto-${index}-1`, x: 100, y: 300, width: 150, height: 60, signed: false }
+                ]
+              }));
+              console.log('업로드된 문서를 로드했습니다:', parsedDocs);
+            } else {
+              // 업로드된 문서가 없으면 샘플 데이터 사용
+              console.log('업로드된 문서가 없어 샘플 데이터를 사용합니다');
+            }
+          }
+        }
+        
+        // 문서와 서명 위치 상태 설정
+        setDocuments(userDocs);
+        setSignedPositions(loadedSignedPositions);
         
         // 이미지 로드 상태 설정
         setImagesLoaded(true);
@@ -186,68 +221,67 @@ export default function DocumentSign() {
     console.log('서명 데이터 로드 성공 (길이):', signatureData.length);
     
     try {
-      // 서명 이미지 설정 (먼저 설정해야 화면에 표시됨)
+      // 서명 이미지 설정
       setSignatureImage(signatureData);
       
-      // 서명 위치에 서명 추가
-      setSignedPositions(prev => {
-        console.log('이전 서명 위치:', prev);
-        const newPositions = { ...prev };
-        newPositions[positionId] = true;
-        console.log('새 서명 위치:', newPositions);
-        return newPositions;
-      });
+      // 새로운 서명 위치 상태 생성 (함수 바깥에서 사용할 변수)
+      const newSignedPositions = { ...signedPositions };
+      newSignedPositions[positionId] = true;
       
-      // 상태 업데이트를 위한 짧은 지연
-      setTimeout(() => {
-        // 서명된 문서 상태 업데이트
-        setDocuments(prev => {
-          const newDocuments = [...prev];
-          const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
-          
-          if (docIndex === -1) {
-            // 문서가 없으면 새로 추가
-            console.log('새 문서 추가:', currentDocIndex + 1);
-            const newDoc = {
-              id: currentDocIndex + 1,
-              imageUrl: currentDocument.imageUrl,
-              pdfUrl: currentDocument.pdfUrl,
-              type: currentDocument.type,
-              signaturePositions: currentSignaturePositions.map(pos => ({
-                ...pos,
-                signed: pos.id === positionId || (signedPositions[pos.id] || false)
-              }))
-            };
-            newDocuments.push(newDoc);
-            console.log('추가된 문서:', newDoc);
-          } else {
-            // 기존 문서 업데이트
-            console.log('기존 문서 업데이트:', docIndex, currentDocIndex + 1);
-            const signaturePositionsUpdate = currentSignaturePositions.map(pos => ({
-              ...pos,
-              signed: pos.id === positionId || (signedPositions[pos.id] || false)
-            }));
-            newDocuments[docIndex] = {
-              ...newDocuments[docIndex],
-              signaturePositions: signaturePositionsUpdate
-            };
-            console.log('업데이트된 문서 서명 위치:', signaturePositionsUpdate);
-          }
-          
-          // 서명된 문서 정보를 세션 스토리지에 저장
-          try {
-            const serializedData = JSON.stringify(newDocuments);
-            sessionStorage.setItem('signedDocuments', serializedData);
-            console.log('세션 스토리지에 문서 저장 성공 (데이터 길이):', serializedData.length);
-          } catch (storageError) {
-            console.error('세션 스토리지 저장 오류:', storageError);
-          }
-          
-          return newDocuments;
-        });
+      // 서명 위치 상태 업데이트
+      setSignedPositions(newSignedPositions);
+      console.log('서명 위치 상태 업데이트:', newSignedPositions);
+      
+      // 문서 상태 업데이트 준비
+      const newDocuments = [...documents];
+      const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
+      
+      if (docIndex === -1) {
+        // 문서가 없으면 새로 추가
+        console.log('새 문서 추가:', currentDocIndex + 1);
+        const newDoc = {
+          id: currentDocIndex + 1,
+          imageUrl: currentDocument.imageUrl,
+          pdfUrl: currentDocument.pdfUrl,
+          type: currentDocument.type,
+          signaturePositions: currentSignaturePositions.map(pos => ({
+            ...pos,
+            signed: pos.id === positionId || newSignedPositions[pos.id] || false
+          }))
+        };
+        newDocuments.push(newDoc);
+        console.log('추가된 문서:', newDoc);
+      } else {
+        // 기존 문서 업데이트
+        console.log('기존 문서 업데이트:', docIndex, currentDocIndex + 1);
+        const signaturePositionsUpdate = currentSignaturePositions.map(pos => ({
+          ...pos,
+          signed: pos.id === positionId || newSignedPositions[pos.id] || false
+        }));
+        newDocuments[docIndex] = {
+          ...newDocuments[docIndex],
+          signaturePositions: signaturePositionsUpdate
+        };
+        console.log('업데이트된 문서 서명 위치:', signaturePositionsUpdate);
+      }
+      
+      // 문서 상태 업데이트
+      setDocuments(newDocuments);
+      
+      // 서명된 문서 정보를 세션 스토리지에 저장 (지속성 보장)
+      try {
+        const serializedData = JSON.stringify(newDocuments);
+        sessionStorage.setItem('signedDocuments', serializedData);
         
-        addError('success', '서명이 추가되었습니다.', true, 2000);
-      }, 100);
+        // 서명 상태도 별도로 저장 (추가 백업)
+        sessionStorage.setItem('signedPositions', JSON.stringify(newSignedPositions));
+        
+        console.log('세션 스토리지에 문서 및 서명 상태 저장 성공');
+      } catch (storageError) {
+        console.error('세션 스토리지 저장 오류:', storageError);
+      }
+      
+      addError('success', '서명이 추가되었습니다.', true, 2000);
     } catch (error) {
       console.error('서명 추가 중 오류:', error);
       addError('error', '서명 추가 중 오류가 발생했습니다.', true, 3000);
