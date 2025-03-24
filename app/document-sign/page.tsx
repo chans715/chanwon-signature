@@ -52,6 +52,7 @@ export default function DocumentSign() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [customSignaturePositions, setCustomSignaturePositions] = useState<Array<Array<{id: string; x: number; y: number; width: number; height: number;}>>>([]);
+  const [imageErrorShown, setImageErrorShown] = useState<Record<number, boolean>>({});
   
   // 커스텀 위치 초기화
   useEffect(() => {
@@ -271,20 +272,33 @@ export default function DocumentSign() {
               {currentDocument.type === 'image' ? (
                 <div className="relative w-full h-[600px]">
                   {currentDocument.imageUrl && (
-                    <Image 
-                      src={currentDocument.imageUrl} 
-                      alt={`문서 ${currentDocIndex + 1}`}
-                      fill
-                      style={{ objectFit: 'contain' }}
-                      className="bg-white"
-                      unoptimized={true}
-                      onError={(e) => {
-                        console.error('이미지 로드 실패:', currentDocument.imageUrl);
-                        addError('error', '이미지를 불러올 수 없습니다.', true, 3000);
-                        // 필요한 경우 여기에 대체 이미지 설정
-                        // e.currentTarget.src = '/images/fallback.jpg';
-                      }}
-                    />
+                    <div className="w-full h-full flex items-center justify-center">
+                      <img 
+                        src={currentDocument.imageUrl}
+                        alt={`문서 ${currentDocIndex + 1}`}
+                        style={{ 
+                          maxWidth: '100%',
+                          maxHeight: '100%',
+                          objectFit: 'contain'
+                        }}
+                        className="bg-white"
+                        onError={(e) => {
+                          console.error('이미지 로드 실패:', currentDocument.imageUrl);
+                          
+                          // 오류 메시지를 한 번만 표시하기 위한 체크
+                          if (!imageErrorShown[currentDocIndex]) {
+                            addError('error', '이미지를 불러올 수 없습니다.', true, 3000);
+                            setImageErrorShown(prev => ({
+                              ...prev,
+                              [currentDocIndex]: true
+                            }));
+                          }
+                          
+                          // 대체 이미지 설정 - 빈 이미지를 사용하여 에러 아이콘 제거
+                          e.currentTarget.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+                        }}
+                      />
+                    </div>
                   )}
                   
                   {/* 서명 위치 표시 */}
@@ -308,12 +322,14 @@ export default function DocumentSign() {
                       }}
                     >
                       {signedPositions[position.id] ? (
-                        <Image 
+                        <img 
                           src={signatureImage || ''} 
                           alt="서명" 
-                          width={position.width - 10} 
-                          height={position.height - 10}
-                          style={{ objectFit: 'contain' }}
+                          style={{ 
+                            width: `${position.width - 10}px`,
+                            height: `${position.height - 10}px`,
+                            objectFit: 'contain'
+                          }}
                         />
                       ) : (
                         <div className="relative w-full h-full flex items-center justify-center">
@@ -361,12 +377,14 @@ export default function DocumentSign() {
                       }}
                     >
                       {signedPositions[position.id] ? (
-                        <Image 
+                        <img 
                           src={signatureImage || ''} 
                           alt="서명" 
-                          width={position.width - 10} 
-                          height={position.height - 10}
-                          style={{ objectFit: 'contain' }}
+                          style={{ 
+                            width: `${position.width - 10}px`,
+                            height: `${position.height - 10}px`,
+                            objectFit: 'contain'
+                          }}
                         />
                       ) : (
                         <div className="relative w-full h-full flex items-center justify-center">
