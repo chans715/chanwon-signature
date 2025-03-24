@@ -125,14 +125,49 @@ export default function DocumentSign() {
   
   // 세션 스토리지에서 서명 이미지 가져오기
   useEffect(() => {
-    const savedSignature = sessionStorage.getItem('userSignature');
-    if (savedSignature) {
-      setSignatureImage(savedSignature);
-      setIsLoading(false);
-    } else {
-      addError('error', '저장된 서명을 찾을 수 없습니다. 서명을 다시 입력해주세요.', true, 5000);
-      router.push('/signature');
-    }
+    // 서명 이미지 로드 시도
+    const loadSignature = () => {
+      console.log('서명 이미지 로드 시도...');
+      
+      // 먼저 세션 스토리지에서 시도
+      let savedSignature = sessionStorage.getItem('userSignature');
+      
+      // 세션 스토리지에 없다면 window 객체에서 백업 확인
+      if (!savedSignature) {
+        console.warn('세션 스토리지에 서명 이미지 없음. window 객체에서 확인...');
+        // @ts-ignore
+        if (window.__signature) {
+          // @ts-ignore
+          savedSignature = window.__signature as string;
+          console.log('window 객체에서 서명 이미지 복구 성공!');
+          
+          // 복구된 데이터를 세션 스토리지에 다시 저장
+          try {
+            sessionStorage.setItem('userSignature', savedSignature);
+            console.log('복구된 서명 데이터를 세션 스토리지에 저장 성공');
+          } catch (err) {
+            console.error('복구된 서명 데이터 저장 실패:', err);
+          }
+        }
+      }
+      
+      if (savedSignature) {
+        console.log('서명 데이터 로드 성공 (길이):', savedSignature.length);
+        setSignatureImage(savedSignature);
+        setIsLoading(false);
+      } else {
+        console.error('세션 스토리지와 백업에서 서명을 찾을 수 없습니다.');
+        addError('error', '저장된 서명을 찾을 수 없습니다. 서명을 다시 입력해주세요.', true, 5000);
+        
+        // 짧은 지연 후 서명 페이지로 이동
+        setTimeout(() => {
+          router.push('/signature');
+        }, 1000);
+      }
+    };
+    
+    // 페이지 로드 시 서명 이미지 로드
+    loadSignature();
   }, [addError, router]);
   
   // 서명 위치에 서명 추가하기
@@ -151,6 +186,9 @@ export default function DocumentSign() {
     console.log('서명 데이터 로드 성공 (길이):', signatureData.length);
     
     try {
+      // 서명 이미지 설정 (먼저 설정해야 화면에 표시됨)
+      setSignatureImage(signatureData);
+      
       // 서명 위치에 서명 추가
       setSignedPositions(prev => {
         console.log('이전 서명 위치:', prev);
@@ -160,56 +198,56 @@ export default function DocumentSign() {
         return newPositions;
       });
       
-      // 서명 이미지 설정
-      setSignatureImage(signatureData);
-      
-      // 서명된 문서 상태 업데이트
-      setDocuments(prev => {
-        const newDocuments = [...prev];
-        const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
-        
-        if (docIndex === -1) {
-          // 문서가 없으면 새로 추가
-          console.log('새 문서 추가:', currentDocIndex + 1);
-          const newDoc = {
-            id: currentDocIndex + 1,
-            imageUrl: currentDocument.imageUrl,
-            pdfUrl: currentDocument.pdfUrl,
-            type: currentDocument.type,
-            signaturePositions: currentSignaturePositions.map(pos => ({
+      // 상태 업데이트를 위한 짧은 지연
+      setTimeout(() => {
+        // 서명된 문서 상태 업데이트
+        setDocuments(prev => {
+          const newDocuments = [...prev];
+          const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
+          
+          if (docIndex === -1) {
+            // 문서가 없으면 새로 추가
+            console.log('새 문서 추가:', currentDocIndex + 1);
+            const newDoc = {
+              id: currentDocIndex + 1,
+              imageUrl: currentDocument.imageUrl,
+              pdfUrl: currentDocument.pdfUrl,
+              type: currentDocument.type,
+              signaturePositions: currentSignaturePositions.map(pos => ({
+                ...pos,
+                signed: pos.id === positionId || (signedPositions[pos.id] || false)
+              }))
+            };
+            newDocuments.push(newDoc);
+            console.log('추가된 문서:', newDoc);
+          } else {
+            // 기존 문서 업데이트
+            console.log('기존 문서 업데이트:', docIndex, currentDocIndex + 1);
+            const signaturePositionsUpdate = currentSignaturePositions.map(pos => ({
               ...pos,
-              signed: pos.id === positionId || (prev?.[docIndex]?.signaturePositions?.find(p => p.id === pos.id)?.signed ?? false)
-            }))
-          };
-          newDocuments.push(newDoc);
-          console.log('추가된 문서:', newDoc);
-        } else {
-          // 기존 문서 업데이트
-          console.log('기존 문서 업데이트:', docIndex, currentDocIndex + 1);
-          const signaturePositionsUpdate = currentSignaturePositions.map(pos => ({
-            ...pos,
-            signed: pos.id === positionId || (prev?.[docIndex]?.signaturePositions?.find(p => p.id === pos.id)?.signed ?? false)
-          }));
-          newDocuments[docIndex] = {
-            ...newDocuments[docIndex],
-            signaturePositions: signaturePositionsUpdate
-          };
-          console.log('업데이트된 문서 서명 위치:', signaturePositionsUpdate);
-        }
+              signed: pos.id === positionId || (signedPositions[pos.id] || false)
+            }));
+            newDocuments[docIndex] = {
+              ...newDocuments[docIndex],
+              signaturePositions: signaturePositionsUpdate
+            };
+            console.log('업데이트된 문서 서명 위치:', signaturePositionsUpdate);
+          }
+          
+          // 서명된 문서 정보를 세션 스토리지에 저장
+          try {
+            const serializedData = JSON.stringify(newDocuments);
+            sessionStorage.setItem('signedDocuments', serializedData);
+            console.log('세션 스토리지에 문서 저장 성공 (데이터 길이):', serializedData.length);
+          } catch (storageError) {
+            console.error('세션 스토리지 저장 오류:', storageError);
+          }
+          
+          return newDocuments;
+        });
         
-        // 서명된 문서 정보를 세션 스토리지에 저장
-        try {
-          const serializedData = JSON.stringify(newDocuments);
-          sessionStorage.setItem('signedDocuments', serializedData);
-          console.log('세션 스토리지에 문서 저장 성공 (데이터 길이):', serializedData.length);
-        } catch (storageError) {
-          console.error('세션 스토리지 저장 오류:', storageError);
-        }
-        
-        return newDocuments;
-      });
-      
-      addError('success', '서명이 추가되었습니다.', true, 2000);
+        addError('success', '서명이 추가되었습니다.', true, 2000);
+      }, 100);
     } catch (error) {
       console.error('서명 추가 중 오류:', error);
       addError('error', '서명 추가 중 오류가 발생했습니다.', true, 3000);
@@ -218,10 +256,19 @@ export default function DocumentSign() {
   
   // 현재 문서의 모든 위치에 서명이 되었는지 확인
   const isCurrentDocumentFullySigned = () => {
-    if (currentSignaturePositions.length === 0) {
+    if (!currentSignaturePositions || currentSignaturePositions.length === 0) {
       return true; // 서명 위치가 없으면 이미 완료된 것으로 간주
     }
-    return currentSignaturePositions.every(pos => signedPositions[pos.id]);
+    
+    // 디버깅 로그
+    console.log('서명 확인:', 
+      currentSignaturePositions.map(pos => ({
+        id: pos.id, 
+        signed: signedPositions[pos.id] || false
+      }))
+    );
+    
+    return currentSignaturePositions.every(pos => signedPositions[pos.id] === true);
   };
   
   // 문서에 클릭하여 서명 위치 추가
@@ -329,6 +376,20 @@ export default function DocumentSign() {
   const toggleCustomMode = () => {
     setIsCustomMode(prev => !prev);
     addError('info', isCustomMode ? '기본 서명 모드로 전환합니다.' : '커스텀 서명 모드로 전환합니다. 문서를 클릭하여 서명 위치를 추가하세요.', true, 3000);
+  };
+  
+  // 서명 동작 변경: 서명 버튼 클릭 핸들러
+  const handleSignatureButtonClick = (positionId: string) => {
+    console.log('서명 버튼 클릭:', positionId);
+    
+    // 이미 서명된 위치인 경우 무시
+    if (signedPositions[positionId]) {
+      console.log('이미 서명된 위치입니다.');
+      return;
+    }
+    
+    // 서명 추가 실행
+    addSignature(positionId);
   };
   
   if (isLoading) {
@@ -558,7 +619,7 @@ export default function DocumentSign() {
                   {currentSignaturePositions.map((position, index) => (
                     <Button
                       key={position.id}
-                      onClick={() => addSignature(position.id)}
+                      onClick={() => handleSignatureButtonClick(position.id)}
                       disabled={signedPositions[position.id]}
                       variant={signedPositions[position.id] ? "success" : "primary"}
                       size="sm"
