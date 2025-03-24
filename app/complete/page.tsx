@@ -36,24 +36,39 @@ export default function Complete() {
   const [recipientEmail, setRecipientEmail] = useState('');
 
   useEffect(() => {
-    // 클라이언트 사이드에서만 실행
-    setDateString(new Date().toLocaleString('ko-KR'));
-    setSignatureId(`SIG-${Math.random().toString(36).substring(2, 10).toUpperCase()}`);
-    
     // 세션 스토리지에서 서명된 문서 정보 가져오기
-    const storedDocuments = sessionStorage.getItem('signedDocuments');
-    if (storedDocuments) {
-      const parsedDocuments = JSON.parse(storedDocuments);
-      setSignedDocuments(parsedDocuments);
-      
-      // 기본적으로 모든 문서 선택
-      const initialSelection: Record<number, boolean> = {};
-      parsedDocuments.forEach((doc: Document) => {
-        initialSelection[doc.id] = true;
-      });
-      setSelectedDocuments(initialSelection);
+    const savedDocuments = sessionStorage.getItem('signedDocuments');
+    if (savedDocuments) {
+      try {
+        const parsedDocuments = JSON.parse(savedDocuments);
+        setSignedDocuments(parsedDocuments);
+        
+        // 모든 문서 선택 상태로 초기화
+        const initialSelections: Record<number, boolean> = {};
+        parsedDocuments.forEach((doc: any) => {
+          initialSelections[doc.id] = true;
+        });
+        setSelectedDocuments(initialSelections);
+      } catch (error) {
+        console.error('서명 문서 데이터 파싱 오류:', error);
+        addError('error', '서명된 문서 정보를 불러오는데 실패했습니다.', true, 5000);
+      }
     }
-  }, []);
+    
+    // 서명 ID 생성
+    const signatureId = `SIG-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    setSignatureId(signatureId);
+    
+    // 현재 날짜 및 시간
+    const now = new Date();
+    setDateString(now.toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }));
+  }, [addError]);
 
   useEffect(() => {
     const sendCompletionNotification = async () => {
@@ -120,20 +135,38 @@ export default function Complete() {
         for (let i = 0; i < docsToDownload.length; i++) {
           const doc = docsToDownload[i];
           
-          // 문서의 이미지 URL
-          const imageUrl = doc.imageUrl || '/images/document1.jpeg'; // 이미지가 없는 경우 대체 이미지
-          
-          // 이미지 다운로드 링크 생성
-          const link = document.createElement('a');
-          link.href = imageUrl;
-          link.download = `서명문서_${doc.id}_${new Date().getTime()}.jpg`;
-          
-          // 다운로드 시작
-          document.body.appendChild(link);
-          link.click();
-          
-          // 클린업
-          document.body.removeChild(link);
+          if (doc.signaturePositions && doc.signaturePositions.some(pos => pos.signed)) {
+            // 서명이 있는 문서의 경우, 서명된 상태로 다운로드
+            // 실제 구현에서는 서버에서 서명이 적용된 PDF 생성 후 다운로드
+            // 현재는 세션 스토리지에 저장된 이미지만 다운로드
+            
+            // 문서의 이미지 URL
+            const imageUrl = doc.imageUrl || '/images/document1.jpeg'; // 이미지가 없는 경우 대체 이미지
+            
+            // 이미지 다운로드 링크 생성
+            const link = document.createElement('a');
+            link.href = imageUrl;
+            link.download = `서명문서_${doc.id}_${new Date().getTime()}.jpg`;
+            
+            // 다운로드 시작
+            document.body.appendChild(link);
+            link.click();
+            
+            // 클린업
+            document.body.removeChild(link);
+          } else {
+            // 서명이 없는 문서는 원본 다운로드
+            const imageUrl = doc.imageUrl || '/images/document1.jpeg';
+            
+            const link = document.createElement('a');
+            link.href = imageUrl;
+            link.download = `문서_${doc.id}_원본_${new Date().getTime()}.jpg`;
+            
+            document.body.appendChild(link);
+            link.click();
+            
+            document.body.removeChild(link);
+          }
           
           // 다운로드 간 간격을 두어 브라우저 제한 방지
           if (i < docsToDownload.length - 1) {

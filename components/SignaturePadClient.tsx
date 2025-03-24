@@ -25,7 +25,7 @@ const SignaturePadClient: React.FC<SignaturePadClientProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext('2d', { willReadFrequently: true });
     if (!context) return;
 
     // 캔버스 크기 설정
@@ -37,6 +37,9 @@ const SignaturePadClient: React.FC<SignaturePadClientProps> = ({
     context.lineCap = 'round';
     context.lineJoin = 'round';
     context.strokeStyle = '#000000';
+    
+    // 캔버스 배경을 투명하게 설정
+    context.clearRect(0, 0, canvas.width, canvas.height);
     
     setCtx(context);
 
@@ -145,6 +148,7 @@ const SignaturePadClient: React.FC<SignaturePadClientProps> = ({
       return;
     }
     
+    // PNG 형식으로 투명 배경과 함께 저장
     const signatureData = canvasRef.current.toDataURL('image/png');
     if (onSave) {
       onSave(signatureData);
@@ -165,13 +169,17 @@ const SignaturePadClient: React.FC<SignaturePadClientProps> = ({
       <div className="relative">
         <canvas
           ref={canvasRef}
-          className={`signature-pad w-full h-56 bg-white rounded-lg transition-all duration-200 ${
+          className={`signature-pad w-full h-56 rounded-lg transition-all duration-200 ${
             isSaved 
               ? 'shadow-[0_0_0_2px_rgba(34,197,94,0.6)]' 
               : hasDrawn 
                 ? 'shadow-[0_0_0_2px_rgba(59,130,246,0.6)]' 
                 : 'shadow-[0_0_0_1px_rgba(209,213,219,0.6)]'
           }`}
+          style={{ 
+            background: 'transparent',
+            border: '1px dashed #e5e7eb'
+          }}
           onMouseDown={startDrawing}
           onMouseMove={draw}
           onMouseUp={stopDrawing}

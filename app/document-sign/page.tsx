@@ -20,7 +20,7 @@ const PDFViewer = dynamic(() => import('@/components/PDFViewer'), {
   )
 });
 
-// 샘플 문서 정보 (이미지와 PDF 포함)
+// 사용할 샘플 문서 데이터
 const sampleDocuments = [
   {
     id: 1,
@@ -28,7 +28,8 @@ const sampleDocuments = [
     pdfUrl: null,
     type: 'image',
     signaturePositions: [
-      { id: 's1', x: 70, y: 70, width: 150, height: 60 }
+      { id: '1', x: 100, y: 300, width: 150, height: 60, signed: false },
+      { id: '2', x: 300, y: 400, width: 150, height: 60, signed: false },
     ]
   },
   {
@@ -37,9 +38,15 @@ const sampleDocuments = [
     pdfUrl: null,
     type: 'image',
     signaturePositions: [
-      { id: 's2', x: 70, y: 150, width: 150, height: 60 },
-      { id: 's3', x: 70, y: 300, width: 150, height: 60 }
+      { id: '1', x: 120, y: 280, width: 150, height: 60, signed: false },
     ]
+  },
+  {
+    id: 3,
+    imageUrl: '/images/document3.jpeg',
+    pdfUrl: null,
+    type: 'image',
+    signaturePositions: []
   }
 ];
 
@@ -51,8 +58,9 @@ export default function DocumentSign() {
   const [signatureImage, setSignatureImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCustomMode, setIsCustomMode] = useState(false);
-  const [customSignaturePositions, setCustomSignaturePositions] = useState<Array<Array<{id: string; x: number; y: number; width: number; height: number;}>>>([]);
+  const [customSignaturePositions, setCustomSignaturePositions] = useState<Array<Array<{id: string; x: number; y: number; width: number; height: number; signed?: boolean;}>>>([]);
   const [imageErrorShown, setImageErrorShown] = useState<Record<number, boolean>>({});
+  const [signedDocuments, setSignedDocuments] = useState(sampleDocuments);
   
   // 커스텀 위치 초기화
   useEffect(() => {
@@ -81,12 +89,59 @@ export default function DocumentSign() {
     setIsLoading(false);
   }, [addError, router]);
   
-  // 서명 위치에 서명 추가
+  // 서명 위치에 서명 추가하기
   const addSignature = (positionId: string) => {
-    setSignedPositions(prev => ({
-      ...prev,
-      [positionId]: true
-    }));
+    // 세션 스토리지에서 서명 가져오기
+    const signatureImage = sessionStorage.getItem('userSignature');
+    
+    if (!signatureImage) {
+      addError('error', '서명이 없습니다. 이전 단계에서 서명을 입력해주세요.', true, 5000);
+      return;
+    }
+    
+    // 서명 위치에 서명 추가
+    setSignedPositions(prev => {
+      const newPositions = { ...prev };
+      newPositions[positionId] = true;
+      return newPositions;
+    });
+    
+    // 서명 이미지 설정
+    setSignatureImage(signatureImage);
+    
+    // 서명된 문서 상태 업데이트
+    setSignedDocuments(prev => {
+      const newDocuments = [...prev];
+      const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
+      
+      if (docIndex === -1) {
+        // 문서가 없으면 새로 추가
+        newDocuments.push({
+          id: currentDocIndex + 1,
+          imageUrl: currentDocument.imageUrl,
+          pdfUrl: currentDocument.pdfUrl,
+          type: currentDocument.type,
+          signaturePositions: currentSignaturePositions.map(pos => ({
+            ...pos,
+            signed: pos.id === positionId || (prev?.[docIndex]?.signaturePositions?.find(p => p.id === pos.id)?.signed ?? false)
+          }))
+        });
+      } else {
+        // 기존 문서 업데이트
+        newDocuments[docIndex] = {
+          ...newDocuments[docIndex],
+          signaturePositions: currentSignaturePositions.map(pos => ({
+            ...pos,
+            signed: pos.id === positionId || (prev?.[docIndex]?.signaturePositions?.find(p => p.id === pos.id)?.signed ?? false)
+          }))
+        };
+      }
+      
+      // 서명된 문서 정보를 세션 스토리지에 저장
+      sessionStorage.setItem('signedDocuments', JSON.stringify(newDocuments));
+      
+      return newDocuments;
+    });
     
     addError('success', '서명이 추가되었습니다.', true, 2000);
   };
@@ -328,7 +383,8 @@ export default function DocumentSign() {
                           style={{ 
                             width: `${position.width - 10}px`,
                             height: `${position.height - 10}px`,
-                            objectFit: 'contain'
+                            objectFit: 'contain',
+                            background: 'transparent'
                           }}
                         />
                       ) : (
@@ -383,7 +439,8 @@ export default function DocumentSign() {
                           style={{ 
                             width: `${position.width - 10}px`,
                             height: `${position.height - 10}px`,
-                            objectFit: 'contain'
+                            objectFit: 'contain',
+                            background: 'transparent'
                           }}
                         />
                       ) : (
