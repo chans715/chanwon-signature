@@ -24,8 +24,8 @@ const PDFViewer = dynamic(() => import('@/components/PDFViewer'), {
 const sampleDocuments = [
   {
     id: 1,
-    imageUrl: '/images/document1.jpg',
-    pdfUrl: '/documents/sample1.pdf',
+    imageUrl: '/images/document1.jpeg',
+    pdfUrl: null,
     type: 'image',
     signaturePositions: [
       { id: 's1', x: 70, y: 70, width: 150, height: 60 }
@@ -33,29 +33,13 @@ const sampleDocuments = [
   },
   {
     id: 2,
-    imageUrl: '/images/document2.jpg',
-    pdfUrl: '/documents/sample2.pdf',
+    imageUrl: '/images/document2.jpeg',
+    pdfUrl: null,
     type: 'image',
     signaturePositions: [
       { id: 's2', x: 70, y: 150, width: 150, height: 60 },
       { id: 's3', x: 70, y: 300, width: 150, height: 60 }
     ]
-  },
-  {
-    id: 3,
-    imageUrl: '/images/document3.jpg',
-    pdfUrl: null,
-    type: 'image',
-    signaturePositions: [
-      { id: 's4', x: 70, y: 400, width: 150, height: 60 }
-    ]
-  },
-  {
-    id: 4,
-    imageUrl: null,
-    pdfUrl: '/documents/report_2024',
-    type: 'pdf',
-    signaturePositions: []
   }
 ];
 

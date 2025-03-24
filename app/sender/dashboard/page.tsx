@@ -77,12 +77,25 @@ export default function SenderDashboard() {
       try {
         await new Promise(resolve => setTimeout(resolve, 1000)); // 로딩 시뮬레이션
         
-        // 세션 스토리지에서 서명 요청 데이터 가져오기
-        const savedRequestsStr = sessionStorage.getItem('signature_requests');
+        // 로컬 스토리지와 세션 스토리지 모두에서 서명 요청 데이터 가져오기
+        const savedSessionRequestsStr = sessionStorage.getItem('signature_requests');
+        const savedLocalRequestsStr = localStorage.getItem('signature_requests');
         let allRequests = [...sampleRequests];
         
-        if (savedRequestsStr) {
-          const savedRequests = JSON.parse(savedRequestsStr);
+        // 모든 요청을 하나의 배열로 합치기
+        const savedRequests = [];
+        
+        if (savedSessionRequestsStr) {
+          const sessionRequests = JSON.parse(savedSessionRequestsStr);
+          savedRequests.push(...sessionRequests);
+        }
+        
+        if (savedLocalRequestsStr) {
+          const localRequests = JSON.parse(savedLocalRequestsStr);
+          savedRequests.push(...localRequests);
+        }
+        
+        if (savedRequests.length > 0) {
           // 새 요청을 기존 샘플 데이터 앞에 추가
           allRequests = [...savedRequests, ...sampleRequests];
           

@@ -115,17 +115,34 @@ export default function Complete() {
       // 실제 구현에서는 여기서 PDF 생성 및 다운로드 로직 구현
       console.log('다운로드할 문서:', docsToDownload);
       
-      // 다운로드 시뮬레이션
-      const link = document.createElement('a');
-      link.href = '/sample-signed-document.pdf'; // 실제로는 동적으로 생성된 PDF URL
-      link.download = `전자서명_문서_${signatureId}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      addError('success', '문서가 성공적으로 다운로드되었습니다.', true, 3000);
-      setIsGeneratingPdf(false);
-    }, 2000);
+      // 다운로드 시뮬레이션 - 실제 존재하는 PDF 파일 사용
+      try {
+        // 공통 테스트 PDF 파일 경로 (실제로 존재하는 파일)
+        const pdfUrl = '/documents/report_2024.pdf'; 
+        
+        // 다운로드 링크 생성
+        const link = document.createElement('a');
+        link.href = pdfUrl;
+        link.download = `전자서명_문서_${signatureId}.pdf`;
+        
+        // 다운로드 시작
+        document.body.appendChild(link);
+        link.click();
+        
+        // 클린업
+        setTimeout(() => {
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(pdfUrl);
+        }, 100);
+        
+        addError('success', '문서가 성공적으로 다운로드되었습니다.', true, 3000);
+      } catch (error) {
+        console.error('PDF 다운로드 중 오류:', error);
+        addError('error', 'PDF 다운로드 중 오류가 발생했습니다. 다시 시도해주세요.', true, 5000);
+      } finally {
+        setIsGeneratingPdf(false);
+      }
+    }, 1500);
   };
 
   return (
