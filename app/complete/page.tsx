@@ -107,42 +107,51 @@ export default function Complete() {
     
     setIsGeneratingPdf(true);
     
-    // PDF 생성 시뮬레이션 (실제로는 jspdf, html2canvas 등을 사용)
-    setTimeout(() => {
-      // 선택된 문서만 필터링
-      const docsToDownload = signedDocuments.filter(doc => selectedDocuments[doc.id]);
-      
-      // 실제 구현에서는 여기서 PDF 생성 및 다운로드 로직 구현
-      console.log('다운로드할 문서:', docsToDownload);
-      
-      // 다운로드 시뮬레이션 - 실제 존재하는 PDF 파일 사용
+    // 선택된 문서만 필터링
+    const docsToDownload = signedDocuments.filter(doc => selectedDocuments[doc.id]);
+    
+    // 실제 구현에서는 여기서 PDF 생성 및 다운로드 로직 구현
+    console.log('다운로드할 문서:', docsToDownload);
+    
+    // 각 문서를 순차적으로 다운로드
+    const downloadImages = async () => {
       try {
-        // 공통 테스트 PDF 파일 경로 (실제로 존재하는 파일)
-        const pdfUrl = '/documents/report_2024.pdf'; 
-        
-        // 다운로드 링크 생성
-        const link = document.createElement('a');
-        link.href = pdfUrl;
-        link.download = `전자서명_문서_${signatureId}.pdf`;
-        
-        // 다운로드 시작
-        document.body.appendChild(link);
-        link.click();
-        
-        // 클린업
-        setTimeout(() => {
+        // 각 문서를 개별적으로 다운로드
+        for (let i = 0; i < docsToDownload.length; i++) {
+          const doc = docsToDownload[i];
+          
+          // 문서의 이미지 URL
+          const imageUrl = doc.imageUrl || '/images/document1.jpeg'; // 이미지가 없는 경우 대체 이미지
+          
+          // 이미지 다운로드 링크 생성
+          const link = document.createElement('a');
+          link.href = imageUrl;
+          link.download = `서명문서_${doc.id}_${new Date().getTime()}.jpg`;
+          
+          // 다운로드 시작
+          document.body.appendChild(link);
+          link.click();
+          
+          // 클린업
           document.body.removeChild(link);
-          window.URL.revokeObjectURL(pdfUrl);
-        }, 100);
+          
+          // 다운로드 간 간격을 두어 브라우저 제한 방지
+          if (i < docsToDownload.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 800));
+          }
+        }
         
-        addError('success', '문서가 성공적으로 다운로드되었습니다.', true, 3000);
+        addError('success', `${docsToDownload.length}개 문서가 성공적으로 다운로드되었습니다.`, true, 3000);
       } catch (error) {
-        console.error('PDF 다운로드 중 오류:', error);
-        addError('error', 'PDF 다운로드 중 오류가 발생했습니다. 다시 시도해주세요.', true, 5000);
+        console.error('문서 다운로드 중 오류:', error);
+        addError('error', '문서 다운로드 중 오류가 발생했습니다. 다시 시도해주세요.', true, 5000);
       } finally {
         setIsGeneratingPdf(false);
       }
-    }, 1500);
+    };
+    
+    // 다운로드 실행
+    downloadImages();
   };
 
   return (

@@ -277,6 +277,13 @@ export default function DocumentSign() {
                       fill
                       style={{ objectFit: 'contain' }}
                       className="bg-white"
+                      unoptimized={true}
+                      onError={(e) => {
+                        console.error('이미지 로드 실패:', currentDocument.imageUrl);
+                        addError('error', '이미지를 불러올 수 없습니다.', true, 3000);
+                        // 필요한 경우 여기에 대체 이미지 설정
+                        // e.currentTarget.src = '/images/fallback.jpg';
+                      }}
                     />
                   )}
                   
