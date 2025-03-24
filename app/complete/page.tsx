@@ -43,6 +43,7 @@ export default function Complete() {
   const [selectedDocuments, setSelectedDocuments] = useState<Record<number, boolean>>({});
   const [signedDocuments, setSignedDocuments] = useState<any[]>([]);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [recipientEmail, setRecipientEmail] = useState('');
   const router = useRouter();
 
   // 성공/오류 메시지 처리 함수
@@ -220,7 +221,10 @@ export default function Complete() {
         // 서명 위치가 있는 경우 서명 추가
         if (documentToDownload.signaturePositions && documentToDownload.signaturePositions.length > 0) {
           // 서명된 위치에만 서명 추가
-          const signedPositions = documentToDownload.signaturePositions.filter((pos: any) => pos.signed);
+          const signedPositions = documentToDownload.signaturePositions.filter(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (pos: any) => pos.signed
+          );
           
           if (signedPositions.length > 0) {
             // 각 서명 위치에 서명 이미지 그리기
@@ -253,8 +257,8 @@ export default function Complete() {
                   }
                 };
                 
-                signatureImg.onerror = (error: Event) => {
-                  console.error('서명 이미지 로드 실패:', error);
+                signatureImg.onerror = () => {
+                  console.error('서명 이미지 로드 실패');
                   positionsProcessed++;
                   
                   // 서명 이미지 로드 실패해도 다운로드 진행
@@ -284,8 +288,8 @@ export default function Complete() {
         }
       };
       
-      img.onerror = (error: Event) => {
-        console.error('문서 이미지 로드 실패:', error);
+      img.onerror = () => {
+        console.error('문서 이미지 로드 실패');
         setError('문서 이미지를 로드할 수 없습니다.');
         
         // 이미지 로드 실패시 다른 방법으로 시도 (상대 경로)
@@ -415,7 +419,7 @@ export default function Complete() {
                 </div>
                 
                 <Button
-                  onClick={() => handleDownload(docId)}
+                  onClick={() => handleDownload(doc.id)}
                   variant="primary"
                   fullWidth
                   loading={isGeneratingPdf}
