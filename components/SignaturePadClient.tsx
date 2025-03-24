@@ -141,28 +141,54 @@ const SignaturePadClient: React.FC<SignaturePadClientProps> = ({
   }, [ctx]);
 
   const saveSignature = useCallback(() => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current) {
+      console.error('캔버스 참조를 찾을 수 없습니다.');
+      return;
+    }
     
     if (!hasDrawn) {
       addError('warning', '서명을 입력해주세요.', true, 3000);
       return;
     }
     
-    // PNG 형식으로 투명 배경과 함께 저장
-    const signatureData = canvasRef.current.toDataURL('image/png');
-    if (onSave) {
-      onSave(signatureData);
+    try {
+      console.log('서명 저장 시도...');
+      
+      // PNG 형식으로 투명 배경과 함께 저장
+      const signatureData = canvasRef.current.toDataURL('image/png');
+      console.log('서명 데이터 생성 성공 (길이):', signatureData.length);
+      
+      if (onSave) {
+        onSave(signatureData);
+      }
+      
+      // 이미 저장된 상태가 아닐 때만 상태 업데이트
+      if (!isSaved) {
+        setIsSaved(true);
+        // 성공 메시지는 부모 컴포넌트에서 처리하도록 함
+      }
+      
+      // 서명 데이터를 세션 스토리지에 저장
+      try {
+        sessionStorage.setItem('userSignature', signatureData);
+        console.log('세션 스토리지에 서명 저장 성공');
+        
+        // 저장 확인
+        const savedData = sessionStorage.getItem('userSignature');
+        if (savedData && savedData === signatureData) {
+          console.log('세션 스토리지 저장 확인 완료 (데이터 일치)');
+        } else {
+          console.warn('세션 스토리지 저장 확인 실패 (데이터 불일치)');
+        }
+      } catch (storageError) {
+        console.error('세션 스토리지 저장 오류:', storageError);
+        addError('error', '서명 저장 중 오류가 발생했습니다.', true, 3000);
+      }
+    } catch (error) {
+      console.error('서명 저장 중 오류:', error);
+      addError('error', '서명 데이터 생성 중 오류가 발생했습니다.', true, 3000);
     }
-    
-    // 이미 저장된 상태가 아닐 때만 상태 업데이트
-    if (!isSaved) {
-      setIsSaved(true);
-      // 성공 메시지는 부모 컴포넌트에서 처리하도록 함
-    }
-    
-    // 서명 데이터를 세션 스토리지에 저장
-    sessionStorage.setItem('userSignature', signatureData);
-  }, [hasDrawn, isSaved, onSave, addError]);
+  }, [hasDrawn, isSaved, onSave, addError, canvasRef]);
 
   return (
     <div className="w-full">

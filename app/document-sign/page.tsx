@@ -137,59 +137,83 @@ export default function DocumentSign() {
   
   // 서명 위치에 서명 추가하기
   const addSignature = (positionId: string) => {
-    // 세션 스토리지에서 서명 가져오기
-    const signatureImage = sessionStorage.getItem('userSignature');
+    console.log('서명 추가 시도:', positionId);
     
-    if (!signatureImage) {
-      addError('error', '서명이 없습니다. 이전 단계에서 서명을 입력해주세요.', true, 5000);
+    // 세션 스토리지에서 서명 가져오기
+    const signatureData = sessionStorage.getItem('userSignature');
+    
+    if (!signatureData) {
+      console.error('세션 스토리지에서 서명 데이터를 찾을 수 없습니다.');
+      addError('error', '서명 이미지를 찾을 수 없습니다. 서명 단계로 돌아가 다시 서명해주세요.', true, 5000);
       return;
     }
     
-    // 서명 위치에 서명 추가
-    setSignedPositions(prev => {
-      const newPositions = { ...prev };
-      newPositions[positionId] = true;
-      return newPositions;
-    });
+    console.log('서명 데이터 로드 성공 (길이):', signatureData.length);
     
-    // 서명 이미지 설정
-    setSignatureImage(signatureImage);
-    
-    // 서명된 문서 상태 업데이트
-    setDocuments(prev => {
-      const newDocuments = [...prev];
-      const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
+    try {
+      // 서명 위치에 서명 추가
+      setSignedPositions(prev => {
+        console.log('이전 서명 위치:', prev);
+        const newPositions = { ...prev };
+        newPositions[positionId] = true;
+        console.log('새 서명 위치:', newPositions);
+        return newPositions;
+      });
       
-      if (docIndex === -1) {
-        // 문서가 없으면 새로 추가
-        newDocuments.push({
-          id: currentDocIndex + 1,
-          imageUrl: currentDocument.imageUrl,
-          pdfUrl: currentDocument.pdfUrl,
-          type: currentDocument.type,
-          signaturePositions: currentSignaturePositions.map(pos => ({
+      // 서명 이미지 설정
+      setSignatureImage(signatureData);
+      
+      // 서명된 문서 상태 업데이트
+      setDocuments(prev => {
+        const newDocuments = [...prev];
+        const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
+        
+        if (docIndex === -1) {
+          // 문서가 없으면 새로 추가
+          console.log('새 문서 추가:', currentDocIndex + 1);
+          const newDoc = {
+            id: currentDocIndex + 1,
+            imageUrl: currentDocument.imageUrl,
+            pdfUrl: currentDocument.pdfUrl,
+            type: currentDocument.type,
+            signaturePositions: currentSignaturePositions.map(pos => ({
+              ...pos,
+              signed: pos.id === positionId || (prev?.[docIndex]?.signaturePositions?.find(p => p.id === pos.id)?.signed ?? false)
+            }))
+          };
+          newDocuments.push(newDoc);
+          console.log('추가된 문서:', newDoc);
+        } else {
+          // 기존 문서 업데이트
+          console.log('기존 문서 업데이트:', docIndex, currentDocIndex + 1);
+          const signaturePositionsUpdate = currentSignaturePositions.map(pos => ({
             ...pos,
             signed: pos.id === positionId || (prev?.[docIndex]?.signaturePositions?.find(p => p.id === pos.id)?.signed ?? false)
-          }))
-        });
-      } else {
-        // 기존 문서 업데이트
-        newDocuments[docIndex] = {
-          ...newDocuments[docIndex],
-          signaturePositions: currentSignaturePositions.map(pos => ({
-            ...pos,
-            signed: pos.id === positionId || (prev?.[docIndex]?.signaturePositions?.find(p => p.id === pos.id)?.signed ?? false)
-          }))
-        };
-      }
+          }));
+          newDocuments[docIndex] = {
+            ...newDocuments[docIndex],
+            signaturePositions: signaturePositionsUpdate
+          };
+          console.log('업데이트된 문서 서명 위치:', signaturePositionsUpdate);
+        }
+        
+        // 서명된 문서 정보를 세션 스토리지에 저장
+        try {
+          const serializedData = JSON.stringify(newDocuments);
+          sessionStorage.setItem('signedDocuments', serializedData);
+          console.log('세션 스토리지에 문서 저장 성공 (데이터 길이):', serializedData.length);
+        } catch (storageError) {
+          console.error('세션 스토리지 저장 오류:', storageError);
+        }
+        
+        return newDocuments;
+      });
       
-      // 서명된 문서 정보를 세션 스토리지에 저장
-      sessionStorage.setItem('signedDocuments', JSON.stringify(newDocuments));
-      
-      return newDocuments;
-    });
-    
-    addError('success', '서명이 추가되었습니다.', true, 2000);
+      addError('success', '서명이 추가되었습니다.', true, 2000);
+    } catch (error) {
+      console.error('서명 추가 중 오류:', error);
+      addError('error', '서명 추가 중 오류가 발생했습니다.', true, 3000);
+    }
   };
   
   // 현재 문서의 모든 위치에 서명이 되었는지 확인
