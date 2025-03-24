@@ -41,18 +41,44 @@ export default function Complete() {
     if (savedDocuments) {
       try {
         const parsedDocuments = JSON.parse(savedDocuments);
-        setSignedDocuments(parsedDocuments);
-        
-        // 모든 문서 선택 상태로 초기화
-        const initialSelections: Record<number, boolean> = {};
-        parsedDocuments.forEach((doc: any) => {
-          initialSelections[doc.id] = true;
-        });
-        setSelectedDocuments(initialSelections);
+        if (Array.isArray(parsedDocuments) && parsedDocuments.length > 0) {
+          console.log('세션 스토리지에서 서명된 문서를 로드했습니다:', parsedDocuments);
+          setSignedDocuments(parsedDocuments);
+          
+          // 모든 문서 선택 상태로 초기화
+          const initialSelections: Record<number, boolean> = {};
+          parsedDocuments.forEach((doc: any) => {
+            initialSelections[doc.id] = true;
+          });
+          setSelectedDocuments(initialSelections);
+        } else {
+          console.warn('세션 스토리지에 유효한 문서 데이터가 없습니다.');
+          addError('warning', '서명된 문서 정보가 없습니다. 샘플 데이터를 표시합니다.', true, 5000);
+          
+          // 샘플 데이터 표시
+          const sampleData = [
+            {
+              id: 1,
+              imageUrl: '/images/document1.jpeg',
+              pdfUrl: null,
+              type: 'image',
+              signaturePositions: [
+                { id: '1', x: 100, y: 300, width: 150, height: 60, signed: true }
+              ]
+            }
+          ];
+          setSignedDocuments(sampleData);
+          
+          // 샘플 데이터 선택 상태 초기화
+          setSelectedDocuments({ 1: true });
+        }
       } catch (error) {
         console.error('서명 문서 데이터 파싱 오류:', error);
         addError('error', '서명된 문서 정보를 불러오는데 실패했습니다.', true, 5000);
       }
+    } else {
+      console.warn('세션 스토리지에 서명된 문서 정보가 없습니다.');
+      // 서명된 문서가 없는 경우 처리
     }
     
     // 서명 ID 생성
@@ -135,37 +161,53 @@ export default function Complete() {
         for (let i = 0; i < docsToDownload.length; i++) {
           const doc = docsToDownload[i];
           
-          if (doc.signaturePositions && doc.signaturePositions.some(pos => pos.signed)) {
-            // 서명이 있는 문서의 경우, 서명된 상태로 다운로드
-            // 실제 구현에서는 서버에서 서명이 적용된 PDF 생성 후 다운로드
-            // 현재는 세션 스토리지에 저장된 이미지만 다운로드
-            
-            // 문서의 이미지 URL
-            const imageUrl = doc.imageUrl || '/images/document1.jpeg'; // 이미지가 없는 경우 대체 이미지
-            
-            // 이미지 다운로드 링크 생성
-            const link = document.createElement('a');
-            link.href = imageUrl;
-            link.download = `서명문서_${doc.id}_${new Date().getTime()}.jpg`;
-            
-            // 다운로드 시작
-            document.body.appendChild(link);
-            link.click();
-            
-            // 클린업
-            document.body.removeChild(link);
-          } else {
-            // 서명이 없는 문서는 원본 다운로드
-            const imageUrl = doc.imageUrl || '/images/document1.jpeg';
-            
-            const link = document.createElement('a');
-            link.href = imageUrl;
-            link.download = `문서_${doc.id}_원본_${new Date().getTime()}.jpg`;
-            
-            document.body.appendChild(link);
-            link.click();
-            
-            document.body.removeChild(link);
+          // 문서가 유효한지 확인
+          if (!doc.imageUrl) {
+            console.error('유효하지 않은 문서:', doc);
+            addError('error', `문서 ${doc.id}의 이미지 URL이 유효하지 않습니다.`, true, 3000);
+            continue;
+          }
+          
+          let imageUrl = doc.imageUrl;
+          
+          // 상대 경로를 절대 경로로 변환
+          if (imageUrl.startsWith('/')) {
+            imageUrl = `${window.location.origin}${imageUrl}`;
+          }
+          
+          try {
+            // 이미지 URL이 유효한지 확인 (테스트 코드 제거)
+            if (doc.signaturePositions && doc.signaturePositions.some(pos => pos.signed)) {
+              // 서명이 있는 문서의 경우, 서명된 상태로 다운로드
+              console.log(`서명된 문서 다운로드: ${doc.id}, URL: ${imageUrl}`);
+              
+              // 이미지 다운로드 링크 생성
+              const link = document.createElement('a');
+              link.href = imageUrl;
+              link.download = `서명문서_${doc.id}_${new Date().getTime()}.jpg`;
+              
+              // 다운로드 시작
+              document.body.appendChild(link);
+              link.click();
+              
+              // 클린업
+              document.body.removeChild(link);
+            } else {
+              // 서명이 없는 문서는 원본 다운로드
+              console.log(`서명되지 않은 문서 다운로드: ${doc.id}, URL: ${imageUrl}`);
+              
+              const link = document.createElement('a');
+              link.href = imageUrl;
+              link.download = `문서_${doc.id}_원본_${new Date().getTime()}.jpg`;
+              
+              document.body.appendChild(link);
+              link.click();
+              
+              document.body.removeChild(link);
+            }
+          } catch (imgError) {
+            console.error('이미지 다운로드 중 오류:', imgError);
+            addError('error', `문서 ${doc.id} 다운로드 중 오류가 발생했습니다.`, true, 3000);
           }
           
           // 다운로드 간 간격을 두어 브라우저 제한 방지
@@ -304,18 +346,25 @@ export default function Complete() {
                       onClick={() => toggleDocumentSelection(doc.id)}
                     >
                       <div className="relative h-40 bg-gray-100">
-                        <Image
-                          src={doc.imageUrl}
+                        <img
+                          src={`${window.location.origin}${doc.imageUrl}`}
                           alt={`문서 ${doc.id}`}
-                          fill
-                          style={{ objectFit: 'contain' }}
+                          style={{ 
+                            width: '100%', 
+                            height: '100%', 
+                            objectFit: 'contain'
+                          }}
+                          onError={(e) => {
+                            console.error('이미지 로드 실패:', doc.imageUrl);
+                            e.currentTarget.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+                          }}
                         />
                       </div>
                       <div className="p-3 bg-white">
                         <div className="flex justify-between items-center">
                           <span className="text-sm font-medium text-gray-700">문서 {doc.id}</span>
                           <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
-                            {doc.signaturePositions.filter(pos => pos.signed).length}개 서명
+                            {doc.signaturePositions?.filter(pos => pos.signed).length || 0}개 서명
                           </span>
                         </div>
                       </div>

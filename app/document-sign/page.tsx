@@ -21,7 +21,7 @@ const PDFViewer = dynamic(() => import('@/components/PDFViewer'), {
 });
 
 // 사용할 샘플 문서 데이터
-const sampleDocuments = [
+const initialSampleDocuments = [
   {
     id: 1,
     imageUrl: '/images/document1.jpeg',
@@ -40,13 +40,6 @@ const sampleDocuments = [
     signaturePositions: [
       { id: '1', x: 120, y: 280, width: 150, height: 60, signed: false },
     ]
-  },
-  {
-    id: 3,
-    imageUrl: '/images/document3.jpeg',
-    pdfUrl: null,
-    type: 'image',
-    signaturePositions: []
   }
 ];
 
@@ -60,33 +53,86 @@ export default function DocumentSign() {
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [customSignaturePositions, setCustomSignaturePositions] = useState<Array<Array<{id: string; x: number; y: number; width: number; height: number; signed?: boolean;}>>>([]);
   const [imageErrorShown, setImageErrorShown] = useState<Record<number, boolean>>({});
-  const [signedDocuments, setSignedDocuments] = useState(sampleDocuments);
+  const [documents, setDocuments] = useState(initialSampleDocuments);
+  const [imagesLoaded, setImagesLoaded] = useState(false);
+  
+  // 페이지 로드 시 서명 상태 초기화
+  useEffect(() => {
+    // 서명 상태 초기화
+    setSignedPositions({});
+    
+    // 이미지 로딩 상태 초기화
+    setImageErrorShown({});
+
+    // 실제 사용자 문서 로드 (예: DB나 스토리지에서)
+    // 여기서는 샘플 데이터를 사용
+    const loadUserDocuments = async () => {
+      try {
+        // 세션 스토리지에서 이전에 업로드한 문서가 있는지 확인
+        const uploadedDocuments = sessionStorage.getItem('uploadedDocuments');
+        if (uploadedDocuments) {
+          const parsedDocs = JSON.parse(uploadedDocuments);
+          if (Array.isArray(parsedDocs) && parsedDocs.length > 0) {
+            // 업로드된 문서가 있으면 사용
+            setDocuments(parsedDocs.map((doc, index) => ({
+              ...doc,
+              id: index + 1,
+              type: 'image',
+              signaturePositions: doc.signaturePositions || [
+                { id: `auto-${index}-1`, x: 100, y: 300, width: 150, height: 60, signed: false }
+              ]
+            })));
+            console.log('업로드된 문서를 로드했습니다:', parsedDocs);
+          } else {
+            // 업로드된 문서가 없으면 샘플 데이터 사용
+            console.log('업로드된 문서가 없어 샘플 데이터를 사용합니다');
+          }
+        }
+        
+        // 이미지 로드 상태 설정
+        setImagesLoaded(true);
+      } catch (error) {
+        console.error('문서 로드 중 오류:', error);
+        addError('error', '문서를 불러오는 중 오류가 발생했습니다.', true, 5000);
+      }
+    };
+    
+    loadUserDocuments();
+  }, [addError]);
   
   // 커스텀 위치 초기화
   useEffect(() => {
-    const initialCustomPositions = sampleDocuments.map(doc => [...doc.signaturePositions]);
-    setCustomSignaturePositions(initialCustomPositions);
-  }, []);
+    if (documents.length > 0 && imagesLoaded) {
+      const initialCustomPositions = documents.map(doc => [...doc.signaturePositions]);
+      setCustomSignaturePositions(initialCustomPositions);
+    }
+  }, [documents, imagesLoaded]);
   
   // 현재 문서와 서명 위치
-  const currentDocument = sampleDocuments[currentDocIndex];
-  const totalDocuments = sampleDocuments.length;
+  const currentDocument = documents[currentDocIndex] || { 
+    id: 0, 
+    imageUrl: '', 
+    pdfUrl: null, 
+    type: 'image',
+    signaturePositions: [] 
+  };
+  const totalDocuments = documents.length;
   
   // 현재 사용할 서명 위치 (기본 또는 커스텀)
-  const currentSignaturePositions = isCustomMode ? 
-    customSignaturePositions[currentDocIndex] || [] : 
-    currentDocument.signaturePositions;
+  const currentSignaturePositions = isCustomMode && customSignaturePositions[currentDocIndex] 
+    ? customSignaturePositions[currentDocIndex] 
+    : currentDocument.signaturePositions || [];
   
   // 세션 스토리지에서 서명 이미지 가져오기
   useEffect(() => {
     const savedSignature = sessionStorage.getItem('userSignature');
     if (savedSignature) {
       setSignatureImage(savedSignature);
+      setIsLoading(false);
     } else {
       addError('error', '저장된 서명을 찾을 수 없습니다. 서명을 다시 입력해주세요.', true, 5000);
       router.push('/signature');
     }
-    setIsLoading(false);
   }, [addError, router]);
   
   // 서명 위치에 서명 추가하기
@@ -110,7 +156,7 @@ export default function DocumentSign() {
     setSignatureImage(signatureImage);
     
     // 서명된 문서 상태 업데이트
-    setSignedDocuments(prev => {
+    setDocuments(prev => {
       const newDocuments = [...prev];
       const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
       
@@ -223,7 +269,7 @@ export default function DocumentSign() {
       sessionStorage.setItem('documentsSignedDate', new Date().toISOString());
       
       // 서명된 문서 정보 저장 (커스텀 위치 포함)
-      const signedDocuments = sampleDocuments.map((doc, idx) => ({
+      const signedDocuments = documents.map((doc, idx) => ({
         id: doc.id,
         imageUrl: doc.imageUrl,
         pdfUrl: doc.pdfUrl,
@@ -249,7 +295,7 @@ export default function DocumentSign() {
   
   // 모든 문서에 서명이 완료되었는지 확인
   const areAllDocumentsSigned = () => {
-    return sampleDocuments.every((doc, idx) => {
+    return documents.every((doc, idx) => {
       const positions = isCustomMode ? customSignaturePositions[idx] : doc.signaturePositions;
       return positions.length === 0 || positions.every(pos => signedPositions[pos.id]);
     });
@@ -329,7 +375,7 @@ export default function DocumentSign() {
                   {currentDocument.imageUrl && (
                     <div className="w-full h-full flex items-center justify-center">
                       <img 
-                        src={currentDocument.imageUrl}
+                        src={`${window.location.origin}${currentDocument.imageUrl}`}
                         alt={`문서 ${currentDocIndex + 1}`}
                         style={{ 
                           maxWidth: '100%',
@@ -342,7 +388,7 @@ export default function DocumentSign() {
                           
                           // 오류 메시지를 한 번만 표시하기 위한 체크
                           if (!imageErrorShown[currentDocIndex]) {
-                            addError('error', '이미지를 불러올 수 없습니다.', true, 3000);
+                            addError('error', `이미지를 불러올 수 없습니다: ${currentDocument.imageUrl}`, true, 3000);
                             setImageErrorShown(prev => ({
                               ...prev,
                               [currentDocIndex]: true
