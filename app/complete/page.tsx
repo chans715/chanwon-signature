@@ -168,15 +168,12 @@ export default function Complete() {
             continue;
           }
           
+          // 이미지 URL 직접 사용 (window.location.origin 제거)
           let imageUrl = doc.imageUrl;
           
-          // 상대 경로를 절대 경로로 변환
-          if (imageUrl.startsWith('/')) {
-            imageUrl = `${window.location.origin}${imageUrl}`;
-          }
+          console.log(`다운로드 시도: 문서 ${doc.id}, URL: ${imageUrl}`);
           
           try {
-            // 이미지 URL이 유효한지 확인 (테스트 코드 제거)
             if (doc.signaturePositions && doc.signaturePositions.some(pos => pos.signed)) {
               // 서명이 있는 문서의 경우, 서명된 상태로 다운로드
               console.log(`서명된 문서 다운로드: ${doc.id}, URL: ${imageUrl}`);
@@ -347,16 +344,30 @@ export default function Complete() {
                     >
                       <div className="relative h-40 bg-gray-100">
                         <img
-                          src={`${window.location.origin}${doc.imageUrl}`}
+                          src={doc.imageUrl}
                           alt={`문서 ${doc.id}`}
                           style={{ 
                             width: '100%', 
                             height: '100%', 
                             objectFit: 'contain'
                           }}
+                          onLoad={() => {
+                            console.log('미리보기 이미지 로드 성공:', doc.imageUrl);
+                          }}
                           onError={(e) => {
-                            console.error('이미지 로드 실패:', doc.imageUrl);
-                            e.currentTarget.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+                            console.error('미리보기 이미지 로드 실패:', doc.imageUrl);
+                            console.log('미리보기 이미지 경로 정보:');
+                            console.log('기본 경로:', doc.imageUrl);
+                            console.log('절대 경로 시도:', `${window.location.origin}${doc.imageUrl}`);
+                            
+                            // 다른 경로 시도
+                            e.currentTarget.src = doc.imageUrl;
+                            
+                            // 두 번째 시도도 실패하면 빈 이미지로 대체
+                            e.currentTarget.onerror = () => {
+                              e.currentTarget.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+                              e.currentTarget.onerror = null; // 무한 루프 방지
+                            };
                           }}
                         />
                       </div>

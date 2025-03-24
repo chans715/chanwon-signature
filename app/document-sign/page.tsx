@@ -375,7 +375,7 @@ export default function DocumentSign() {
                   {currentDocument.imageUrl && (
                     <div className="w-full h-full flex items-center justify-center">
                       <img 
-                        src={`${window.location.origin}${currentDocument.imageUrl}`}
+                        src={`${currentDocument.imageUrl}`}
                         alt={`문서 ${currentDocIndex + 1}`}
                         style={{ 
                           maxWidth: '100%',
@@ -383,20 +383,35 @@ export default function DocumentSign() {
                           objectFit: 'contain'
                         }}
                         className="bg-white"
+                        onLoad={() => {
+                          console.log('이미지 로드 성공:', currentDocument.imageUrl);
+                        }}
                         onError={(e) => {
                           console.error('이미지 로드 실패:', currentDocument.imageUrl);
                           
                           // 오류 메시지를 한 번만 표시하기 위한 체크
                           if (!imageErrorShown[currentDocIndex]) {
-                            addError('error', `이미지를 불러올 수 없습니다: ${currentDocument.imageUrl}`, true, 3000);
+                            addError('error', `이미지를 불러올 수 없습니다: ${currentDocument.imageUrl}`, true, 5000);
                             setImageErrorShown(prev => ({
                               ...prev,
                               [currentDocIndex]: true
                             }));
+                            
+                            // 이미지 경로 디버깅 정보 출력
+                            console.log('이미지 경로 정보:');
+                            console.log('기본 경로:', currentDocument.imageUrl);
+                            console.log('절대 경로:', `${window.location.origin}${currentDocument.imageUrl}`);
+                            console.log('기본 URL:', window.location.origin);
                           }
                           
-                          // 대체 이미지 설정 - 빈 이미지를 사용하여 에러 아이콘 제거
-                          e.currentTarget.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+                          // 다른 경로 시도 (window.location.origin 없이)
+                          e.currentTarget.src = currentDocument.imageUrl;
+                          
+                          // 두 번째 시도도 실패하면 빈 이미지로 대체
+                          e.currentTarget.onerror = () => {
+                            e.currentTarget.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+                            e.currentTarget.onerror = null; // 무한 루프 방지
+                          };
                         }}
                       />
                     </div>
