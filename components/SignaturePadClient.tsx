@@ -25,7 +25,7 @@ const SignaturePadClient: React.FC<SignaturePadClientProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const context = canvas.getContext('2d', { willReadFrequently: true });
+    const context = canvas.getContext('2d', { willReadFrequently: true, alpha: true });
     if (!context) return;
 
     // 캔버스 크기 설정
@@ -38,7 +38,7 @@ const SignaturePadClient: React.FC<SignaturePadClientProps> = ({
     context.lineJoin = 'round';
     context.strokeStyle = '#000000';
     
-    // 캔버스 배경을 투명하게 설정 - 배경 채우기 제거
+    // 캔버스 배경을 완전히 투명하게 설정
     context.clearRect(0, 0, canvas.width, canvas.height);
     
     setCtx(context);
@@ -49,9 +49,6 @@ const SignaturePadClient: React.FC<SignaturePadClientProps> = ({
       if (!canvas || !ctx) return;
       
       const currentImage = canvas.toDataURL('image/png');
-      
-      const oldWidth = canvas.width;
-      const oldHeight = canvas.height;
       
       // 새 크기로 설정
       canvas.width = canvas.offsetWidth;
@@ -64,10 +61,10 @@ const SignaturePadClient: React.FC<SignaturePadClientProps> = ({
       ctx.strokeStyle = '#000000';
       
       if (hasDrawn) {
-        // 이미지 복원
+        // 이미지 복원 - 투명 배경 유지
         const img = new Image();
         img.onload = () => {
-          // 배경 지우기
+          // 배경을 완전히 지우기
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           // 이미지 그리기
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -169,12 +166,12 @@ const SignaturePadClient: React.FC<SignaturePadClientProps> = ({
       
       // 캔버스의 실제 내용이 있는 영역만 계산 (여백 줄이기)
       const canvas = canvasRef.current;
-      const context = canvas.getContext('2d', { willReadFrequently: true });
+      const context = canvas.getContext('2d', { willReadFrequently: true, alpha: true });
       if (!context) {
         throw new Error('캔버스 컨텍스트를 가져올 수 없습니다.');
       }
       
-      // PNG 형식으로 투명 배경과 함께 저장
+      // PNG 형식으로 투명 배경과 함께 저장 (alpha 투명도 유지)
       const signatureData = canvas.toDataURL('image/png');
       console.log('서명 데이터 생성 성공 (길이):', signatureData.length);
       

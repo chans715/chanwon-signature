@@ -409,6 +409,43 @@ export default function DocumentSign() {
         
         addError('info', '서명 위치가 삭제되었습니다.', true, 2000);
       }
+    } else {
+      // 기본 모드에서는 서명만 삭제하고 위치는 유지
+      if (signedPositions[positionId]) {
+        const updatedSignedPositions = { ...signedPositions };
+        delete updatedSignedPositions[positionId];
+        setSignedPositions(updatedSignedPositions);
+        
+        // 문서의 서명 상태만 업데이트
+        const newDocuments = [...documents];
+        const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
+        
+        if (docIndex !== -1) {
+          const updatedPositions = newDocuments[docIndex].signaturePositions.map(pos => {
+            if (pos.id === positionId) {
+              return { ...pos, signed: false };
+            }
+            return pos;
+          });
+          
+          newDocuments[docIndex] = {
+            ...newDocuments[docIndex],
+            signaturePositions: updatedPositions
+          };
+          
+          setDocuments(newDocuments);
+          
+          // 세션 스토리지 업데이트
+          try {
+            sessionStorage.setItem('signedDocuments', JSON.stringify(newDocuments));
+            sessionStorage.setItem('signedPositions', JSON.stringify(updatedSignedPositions));
+          } catch (err) {
+            console.error('세션 스토리지 업데이트 오류:', err);
+          }
+        }
+        
+        addError('info', '서명이 삭제되었습니다.', true, 2000);
+      }
     }
   };
   
@@ -720,7 +757,7 @@ export default function DocumentSign() {
                     <div
                       key={position.id}
                       className={`absolute border-2 ${
-                        signedPositions[position.id] ? 'border-green-500 bg-green-50' : 'border-red-500 animate-pulse'
+                        signedPositions[position.id] ? 'border-green-500 bg-green-50/30' : 'border-red-500 animate-pulse'
                       } rounded-md flex items-center justify-center`}
                       style={{
                         left: `${position.x}px`,
@@ -732,6 +769,14 @@ export default function DocumentSign() {
                         if (isCustomMode) {
                           e.stopPropagation();
                           removeSignaturePosition(position.id);
+                        } else if (signedPositions[position.id]) {
+                          // 기본 모드에서 서명된 위치 클릭시 서명 삭제
+                          e.stopPropagation();
+                          removeSignaturePosition(position.id);
+                        } else {
+                          // 기본 모드에서 서명되지 않은 위치 클릭시 서명 추가
+                          e.stopPropagation();
+                          handleSignatureButtonClick(position.id);
                         }
                       }}
                       onMouseDown={(e) => handleDragStart(e, position.id)}
@@ -777,7 +822,7 @@ export default function DocumentSign() {
                     <div
                       key={position.id}
                       className={`absolute border-2 ${
-                        signedPositions[position.id] ? 'border-green-500 bg-green-50' : 'border-red-500 animate-pulse'
+                        signedPositions[position.id] ? 'border-green-500 bg-green-50/30' : 'border-red-500 animate-pulse'
                       } rounded-md flex items-center justify-center z-10`}
                       style={{
                         left: `${position.x}px`,
@@ -789,6 +834,14 @@ export default function DocumentSign() {
                         if (isCustomMode) {
                           e.stopPropagation();
                           removeSignaturePosition(position.id);
+                        } else if (signedPositions[position.id]) {
+                          // 기본 모드에서 서명된 위치 클릭시 서명 삭제
+                          e.stopPropagation();
+                          removeSignaturePosition(position.id);
+                        } else {
+                          // 기본 모드에서 서명되지 않은 위치 클릭시 서명 추가
+                          e.stopPropagation();
+                          handleSignatureButtonClick(position.id);
                         }
                       }}
                       onMouseDown={(e) => handleDragStart(e, position.id)}
