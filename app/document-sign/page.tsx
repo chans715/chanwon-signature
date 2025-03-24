@@ -334,8 +334,7 @@ export default function DocumentSign() {
   
   // 문서에 클릭하여 서명 위치 추가
   const handleDocumentClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isCustomMode) return;
-    
+    // 커스텀 모드가 아닐 때도 클릭으로 서명 필드 추가
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -343,24 +342,56 @@ export default function DocumentSign() {
     const height = 60;
     
     // 새 서명 위치 ID 생성
-    const newPositionId = `custom-${currentDocIndex}-${Date.now()}`;
+    const newPositionId = `${isCustomMode ? 'custom' : 'default'}-${currentDocIndex}-${Date.now()}`;
     
-    // 현재 문서의 커스텀 서명 위치 복사
-    const updatedPositions = [...customSignaturePositions];
-    if (!updatedPositions[currentDocIndex]) {
-      updatedPositions[currentDocIndex] = [];
+    // 현재 문서의 서명 위치 배열 복사
+    let updatedPositions;
+    
+    if (isCustomMode) {
+      // 커스텀 모드에서는 customSignaturePositions 배열 사용
+      updatedPositions = [...customSignaturePositions];
+      if (!updatedPositions[currentDocIndex]) {
+        updatedPositions[currentDocIndex] = [];
+      }
+      
+      // 새 서명 위치 추가
+      updatedPositions[currentDocIndex].push({
+        id: newPositionId,
+        x,
+        y,
+        width,
+        height
+      });
+      
+      setCustomSignaturePositions(updatedPositions);
+    } else {
+      // 기본 모드에서는 documents 배열 직접 수정
+      const newDocuments = [...documents];
+      const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
+      
+      if (docIndex !== -1) {
+        // 새 서명 위치 추가
+        const newPosition = {
+          id: newPositionId,
+          x,
+          y,
+          width,
+          height,
+          signed: false
+        };
+        
+        newDocuments[docIndex].signaturePositions.push(newPosition);
+        setDocuments(newDocuments);
+        
+        // 세션 스토리지 업데이트
+        try {
+          sessionStorage.setItem('signedDocuments', JSON.stringify(newDocuments));
+        } catch (err) {
+          console.error('세션 스토리지 업데이트 오류:', err);
+        }
+      }
     }
     
-    // 새 서명 위치 추가
-    updatedPositions[currentDocIndex].push({
-      id: newPositionId,
-      x,
-      y,
-      width,
-      height
-    });
-    
-    setCustomSignaturePositions(updatedPositions);
     addError('success', '서명 위치가 추가되었습니다.', true, 2000);
   };
   
@@ -546,19 +577,42 @@ export default function DocumentSign() {
   
   // 로컬 스토리지에 서명된 문서를 저장하는 함수 추가
   const saveSignedDocumentForDownload = () => {
-    // 서명된 문서 정보 저장 (문서와 서명 위치 포함)
-    const signedDocuments = documents.map((doc, idx) => ({
-      id: doc.id,
-      imageUrl: doc.imageUrl,
-      pdfUrl: doc.pdfUrl,
-      type: doc.type,
-      signaturePositions: doc.signaturePositions
-    }));
+    // 서명 이미지 가져오기
+    const signature = signatureImage || sessionStorage.getItem('userSignature');
+    
+    if (!signature) {
+      console.error('서명 이미지를 찾을 수 없습니다');
+      addError('error', '서명 이미지를 찾을 수 없습니다. 서명을 다시 입력해주세요.', true, 3000);
+      return;
+    }
+
+    // 서명된 문서 정보 저장 (문서, 서명 위치, 서명 이미지 포함)
+    const signedDocuments = documents.map((doc, idx) => {
+      // 서명 위치 배열 가져오기
+      const positions = doc.signaturePositions.map(pos => {
+        return {
+          ...pos,
+          // 서명 이미지 URL 포함 - 서명된 위치에만 이미지 추가
+          signatureImage: pos.signed ? signature : null
+        };
+      });
+
+      return {
+        id: doc.id,
+        imageUrl: doc.imageUrl,
+        pdfUrl: doc.pdfUrl,
+        type: doc.type,
+        signaturePositions: positions,
+        // 서명 이미지도 함께 저장
+        signatureImage: signature
+      };
+    });
     
     // 로컬 스토리지에 저장 (다운로드용)
     try {
       localStorage.setItem('signedDocumentsForDownload', JSON.stringify(signedDocuments));
-      console.log('다운로드를 위해 서명된 문서 저장 완료');
+      localStorage.setItem('userSignatureForDownload', signature); // 서명 이미지 별도 저장
+      console.log('다운로드를 위해 서명된 문서 저장 완료 (서명 이미지 포함)');
     } catch (err) {
       console.error('로컬 스토리지 저장 오류:', err);
     }
@@ -690,7 +744,7 @@ export default function DocumentSign() {
                   <p className="text-sm text-blue-700">
                     {isCustomMode 
                       ? '문서를 클릭하여 서명 위치를 직접 지정하세요. 위치 지정 후 \'서명등록\' 버튼을 클릭해주세요.' 
-                      : '해당 문서를 읽어보시고, 밑에 서명등록 버튼을 클릭해주세요.'}
+                      : '문서를 클릭하여 원하는 위치에 서명 필드를 추가하세요. 서명된 필드를 클릭하면 서명이 삭제됩니다.'}
                   </p>
                 </div>
               </div>
@@ -698,8 +752,8 @@ export default function DocumentSign() {
             
             <div 
               className="relative border border-gray-300 rounded-md mb-6 overflow-hidden"
-              onClick={isCustomMode ? handleDocumentClick : undefined}
-              style={{ cursor: isCustomMode ? 'crosshair' : 'default' }}
+              onClick={handleDocumentClick}
+              style={{ cursor: 'crosshair' }}
               onMouseMove={handleDragMove}
               onMouseUp={handleDragEnd}
               onMouseLeave={handleDragEnd}
