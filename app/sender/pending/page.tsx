@@ -57,11 +57,11 @@ export default function SenderPending() {
                 <ul className="space-y-2 text-sm text-gray-600">
                   <li className="flex">
                     <span className="font-medium w-20">이메일:</span>
-                    <span>support@example.com</span>
+                    <span>smilepicnic@naver.com</span>
                   </li>
                   <li className="flex">
-                    <span className="font-medium w-20">전화:</span>
-                    <span>02-1234-5678 (평일 09:00-18:00)</span>
+                    <span className="font-medium w-20">전화번호:</span>
+                    <span>010-6444-4492 (평일 09:00~18:00)</span>
                   </li>
                 </ul>
               </div>

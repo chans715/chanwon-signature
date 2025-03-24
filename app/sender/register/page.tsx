@@ -53,8 +53,27 @@ export default function SenderRegister() {
     setIsSubmitting(true);
     
     try {
-      // 실제로는 여기서 API 호출하여 회원가입 요청
-      await new Promise(resolve => setTimeout(resolve, 1500)); // 시뮬레이션
+      // 회원가입 요청 데이터 생성
+      const registrationRequest = {
+        id: `REG-${Math.floor(Math.random() * 1000)}`,
+        name: formData.name,
+        email: formData.email,
+        company: formData.company,
+        position: formData.position || '직책 미입력',
+        phone: formData.phone,
+        password: formData.password, // 실제 구현에서는 암호화 필요
+        requestDate: new Date().toISOString(),
+        status: 'pending'
+      };
+      
+      // 로컬 스토리지에서 기존 요청 목록 가져오기
+      const existingRequests = JSON.parse(localStorage.getItem('registrationRequests') || '[]');
+      
+      // 새 요청 추가
+      existingRequests.push(registrationRequest);
+      
+      // 로컬 스토리지에 저장
+      localStorage.setItem('registrationRequests', JSON.stringify(existingRequests));
       
       // 회원가입 성공 메시지
       addError('success', '회원가입 요청이 완료되었습니다. 관리자 승인 후 이용 가능합니다.', true, 5000);
@@ -245,6 +264,17 @@ export default function SenderRegister() {
                   </div>
                 </div>
               </div>
+              
+              <div className="mt-6">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="w-full"
+                  loading={isSubmitting}
+                >
+                  회원가입 신청
+                </Button>
+              </div>
             </form>
           </CardContent>
           
@@ -254,14 +284,6 @@ export default function SenderRegister() {
               variant="outline"
             >
               취소
-            </Button>
-            <Button 
-              onClick={handleSubmit}
-              loading={isSubmitting}
-              disabled={isSubmitting}
-              variant="primary"
-            >
-              회원가입 신청
             </Button>
           </CardFooter>
         </Card>

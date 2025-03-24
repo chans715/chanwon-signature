@@ -56,10 +56,10 @@ export default function Home() {
               </p>
               <div className="flex flex-col sm:flex-row gap-4 pt-4">
                 <Button href="/auth" size="lg">
-                  서명 요청하기
+                  서명하기
                 </Button>
-                <Button href="/about" variant="outline" size="lg">
-                  서비스 소개
+                <Button href="/sender/login" variant="outline" size="lg">
+                  서명 요청하기
                 </Button>
               </div>
             </div>
@@ -127,7 +127,7 @@ export default function Home() {
               size="lg"
               className="bg-white text-blue-600 hover:bg-gray-100"
             >
-              서명 요청하기
+              서명하기
             </Button>
           </div>
         </Container>

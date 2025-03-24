@@ -3,173 +3,181 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useError } from '@/components/ErrorHandler';
 import Container from '@/components/ui/Container';
 import Card, { CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import ReCAPTCHA from 'react-google-recaptcha';
-import CryptoJS from 'crypto-js';
+import { useError } from '@/components/ErrorHandler';
 
 export default function SenderLogin() {
   const router = useRouter();
   const { addError } = useError();
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
-    rememberMe: false
+    password: ''
   });
-  const [recaptchaValue, setRecaptchaValue] = useState('');
-  
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: value
     }));
   };
-  
-  const handleRecaptchaChange = (value: string | null) => {
-    setRecaptchaValue(value || '');
-  };
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // 유효성 검사
-    if (!formData.email || !formData.password) {
-      addError('warning', '이메일과 비밀번호를 입력해주세요.', true, 3000);
-      return;
-    }
-    
-    setIsLoggingIn(true);
-    
+    setIsLoading(true);
+
     try {
-      // 비밀번호 암호화
-      const encryptedPassword = CryptoJS.AES.encrypt(formData.password, 'your-secret-key').toString();
-      
-      // 로그인 API 호출
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          encryptedPassword,
-        }),
-      });
-      
-      if (response.ok) {
-        addError('success', '로그인 성공! 대시보드로 이동합니다.', true, 3000);
+      // 테스트 계정은 그대로 유지
+      if (formData.email === 'test@example.com' && formData.password === 'password') {
+        sessionStorage.setItem('sender_logged_in', 'true');
+        sessionStorage.setItem('sender_email', formData.email);
+        
+        addError('success', '로그인에 성공했습니다.', true, 2000);
         router.push('/sender/dashboard');
-      } else {
-        const errorData = await response.json();
-        addError('error', errorData.error || '로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.', true, 5000);
+        return;
       }
+
+      // 로컬 스토리지에서 회원 정보 확인
+      const registrationRequestsStr = localStorage.getItem('registrationRequests');
+      if (registrationRequestsStr) {
+        const registrationRequests = JSON.parse(registrationRequestsStr);
+        
+        // 이메일과 비밀번호가 일치하고 승인된 회원인지 확인
+        const user = registrationRequests.find(
+          (req: any) => req.email === formData.email && 
+                    req.password === formData.password && 
+                    req.status === 'approved'
+        );
+        
+        if (user) {
+          // 로그인 성공 처리
+          sessionStorage.setItem('sender_logged_in', 'true');
+          sessionStorage.setItem('sender_email', formData.email);
+          sessionStorage.setItem('sender_name', user.name);
+          
+          addError('success', '로그인에 성공했습니다.', true, 2000);
+          router.push('/sender/dashboard');
+          return;
+        }
+        
+        // 승인되지 않은 사용자 체크
+        const pendingUser = registrationRequests.find(
+          (req: any) => req.email === formData.email && 
+                    req.password === formData.password && 
+                    req.status === 'pending'
+        );
+        
+        if (pendingUser) {
+          addError('warning', '회원가입 승인 대기 중입니다. 관리자 승인 후 로그인 가능합니다.', true, 4000);
+          return;
+        }
+      }
+      
+      // 로그인 실패
+      addError('error', '이메일 또는 비밀번호가 잘못되었습니다.', true, 3000);
     } catch (error) {
-      addError('error', '로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.', true, 5000);
+      addError('error', '로그인 중 오류가 발생했습니다.', true, 3000);
     } finally {
-      setIsLoggingIn(false);
+      setIsLoading(false);
     }
   };
-  
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-12">
       <Container maxWidth="sm">
         <Card variant="elevated">
           <CardHeader>
-            <CardTitle>발송인 로그인</CardTitle>
-            <CardDescription>
-              전자서명 문서 발송을 위한 계정으로 로그인합니다.
+            <CardTitle className="text-center">발송인 로그인</CardTitle>
+            <CardDescription className="text-center">
+              서명 요청을 보내기 위해 로그인해주세요.
             </CardDescription>
           </CardHeader>
           
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* 이메일 */}
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                   이메일
                 </label>
                 <input
-                  type="email"
                   id="email"
                   name="email"
+                  type="email"
+                  required
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="your@email.com"
                 />
               </div>
               
-              {/* 비밀번호 */}
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                   비밀번호
                 </label>
                 <input
-                  type="password"
                   id="password"
                   name="password"
+                  type="password"
+                  required
                   value={formData.password}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="••••••••"
                 />
               </div>
               
-              {/* 로그인 유지 및 비밀번호 찾기 */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
                   <input
-                    id="rememberMe"
-                    name="rememberMe"
+                    id="remember_me"
+                    name="remember_me"
                     type="checkbox"
-                    checked={formData.rememberMe}
-                    onChange={handleChange}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
-                  <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
+                  <label htmlFor="remember_me" className="ml-2 block text-sm text-gray-700">
                     로그인 상태 유지
                   </label>
                 </div>
                 
                 <div className="text-sm">
-                  <Link href="/sender/forgot-password" className="text-blue-600 hover:text-blue-800">
+                  <a href="#" className="text-blue-600 hover:text-blue-500">
                     비밀번호를 잊으셨나요?
-                  </Link>
+                  </a>
                 </div>
               </div>
               
-              {/* 로그인 버튼 */}
-              <Button
-                type="submit"
-                variant="primary"
-                fullWidth
-                loading={isLoggingIn}
-                disabled={!formData.email || !formData.password || !recaptchaValue}
-              >
-                로그인
-              </Button>
-              
-              {/* 회원가입 링크 */}
-              <div className="text-center mt-4">
-                <p className="text-sm text-gray-600">
-                  계정이 없으신가요?{' '}
-                  <Link href="/sender/register" className="text-blue-600 hover:text-blue-800 font-medium">
-                    회원가입
-                  </Link>
-                </p>
+              <div>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="w-full"
+                  loading={isLoading}
+                >
+                  로그인
+                </Button>
               </div>
             </form>
-            
-            <ReCAPTCHA
-              sitekey="YOUR_RECAPTCHA_SITE_KEY"
-              onChange={handleRecaptchaChange}
-            />
           </CardContent>
+          
+          <CardFooter className="justify-center border-t border-gray-200 pt-4">
+            <p className="text-sm text-gray-600">
+              계정이 없으신가요?{' '}
+              <Link href="/sender/register" className="text-blue-600 hover:text-blue-500">
+                회원가입
+              </Link>
+            </p>
+          </CardFooter>
         </Card>
+        
+        <div className="mt-8 text-center">
+          <p className="text-sm text-gray-500">
+            테스트 계정: test@example.com / password
+          </p>
+        </div>
       </Container>
     </div>
   );

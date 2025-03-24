@@ -80,12 +80,37 @@ export default function AdminDashboard() {
   const [selectedTab, setSelectedTab] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   
   useEffect(() => {
-    // 실제로는 API에서 데이터를 가져옴
+    // 로컬 스토리지에서 회원가입 요청 데이터 가져오기
     const fetchData = async () => {
       try {
         await new Promise(resolve => setTimeout(resolve, 1000)); // 로딩 시뮬레이션
-        setRegistrationRequests(sampleRegistrationRequests);
-        setUserStats(sampleUserStats);
+        
+        // 로컬 스토리지에서 회원가입 요청 데이터 가져오기
+        const storedRequests = localStorage.getItem('registrationRequests');
+        const registrationRequestsData = storedRequests ? JSON.parse(storedRequests) : [];
+        
+        // 샘플 데이터와 로컬 스토리지 데이터 합치기 (실제 구현에서는 로컬 스토리지 데이터만 사용)
+        const allRequests = [...sampleRegistrationRequests, ...registrationRequestsData];
+        
+        // 중복 제거 (id 기준)
+        const uniqueRequests = Array.from(
+          new Map(allRequests.map(req => [req.id, req])).values()
+        );
+        
+        setRegistrationRequests(uniqueRequests);
+        
+        // 통계 정보 계산
+        const pendingCount = uniqueRequests.filter(req => req.status === 'pending').length;
+        const approvedCount = uniqueRequests.filter(req => req.status === 'approved').length;
+        const rejectedCount = uniqueRequests.filter(req => req.status === 'rejected').length;
+        
+        setUserStats({
+          total: uniqueRequests.length,
+          active: approvedCount,
+          pending: pendingCount,
+          rejected: rejectedCount
+        });
+        
         setIsLoading(false);
       } catch (error) {
         addError('error', '데이터를 불러오는 중 오류가 발생했습니다.', true, 5000);
@@ -109,15 +134,15 @@ export default function AdminDashboard() {
   
   const handleApprove = async (id: string) => {
     try {
-      // 실제로는 API 호출하여 승인 처리
-      await new Promise(resolve => setTimeout(resolve, 500)); // 시뮬레이션
+      // 승인 처리 시뮬레이션
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // 상태 업데이트
-      setRegistrationRequests(prev => 
-        prev.map(req => 
-          req.id === id ? { ...req, status: 'approved' } : req
-        )
+      const updatedRequests = registrationRequests.map(req => 
+        req.id === id ? { ...req, status: 'approved' } : req
       );
+      
+      setRegistrationRequests(updatedRequests);
       
       // 통계 업데이트
       setUserStats(prev => ({
@@ -125,6 +150,9 @@ export default function AdminDashboard() {
         active: prev.active + 1,
         pending: prev.pending - 1
       }));
+      
+      // 로컬 스토리지 업데이트
+      localStorage.setItem('registrationRequests', JSON.stringify(updatedRequests));
       
       addError('success', '회원가입 요청이 승인되었습니다.', true, 3000);
     } catch (error) {
@@ -134,15 +162,15 @@ export default function AdminDashboard() {
   
   const handleReject = async (id: string) => {
     try {
-      // 실제로는 API 호출하여 거절 처리
-      await new Promise(resolve => setTimeout(resolve, 500)); // 시뮬레이션
+      // 거절 처리 시뮬레이션
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // 상태 업데이트
-      setRegistrationRequests(prev => 
-        prev.map(req => 
-          req.id === id ? { ...req, status: 'rejected' } : req
-        )
+      const updatedRequests = registrationRequests.map(req => 
+        req.id === id ? { ...req, status: 'rejected' } : req
       );
+      
+      setRegistrationRequests(updatedRequests);
       
       // 통계 업데이트
       setUserStats(prev => ({
@@ -150,6 +178,9 @@ export default function AdminDashboard() {
         rejected: prev.rejected + 1,
         pending: prev.pending - 1
       }));
+      
+      // 로컬 스토리지 업데이트
+      localStorage.setItem('registrationRequests', JSON.stringify(updatedRequests));
       
       addError('success', '회원가입 요청이 거절되었습니다.', true, 3000);
     } catch (error) {
