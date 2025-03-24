@@ -612,6 +612,12 @@ export default function DocumentSign() {
     try {
       localStorage.setItem('signedDocumentsForDownload', JSON.stringify(signedDocuments));
       localStorage.setItem('userSignatureForDownload', signature); // 서명 이미지 별도 저장
+      
+      // 다운로드를 위한 추가 정보 저장
+      localStorage.setItem('signedDocumentsCount', String(documents.length));
+      localStorage.setItem('signedDate', new Date().toISOString());
+      localStorage.setItem('hasSignature', 'true');
+      
       console.log('다운로드를 위해 서명된 문서 저장 완료 (서명 이미지 포함)');
     } catch (err) {
       console.error('로컬 스토리지 저장 오류:', err);
@@ -640,18 +646,32 @@ export default function DocumentSign() {
       sessionStorage.setItem('documentsSignedDate', new Date().toISOString());
       
       // 서명된 문서 정보 저장 (커스텀 위치 포함)
-      const signedDocuments = documents.map((doc, idx) => ({
-        id: doc.id,
-        imageUrl: doc.imageUrl,
-        pdfUrl: doc.pdfUrl,
-        type: doc.type,
-        signaturePositions: (isCustomMode ? customSignaturePositions[idx] : doc.signaturePositions).map(pos => ({
-          ...pos,
-          signed: signedPositions[pos.id] || false
-        }))
-      }));
+      const signedDocuments = documents.map((doc, idx) => {
+        // 서명된 문서에 서명 이미지 포함
+        const positions = isCustomMode ? customSignaturePositions[idx] : doc.signaturePositions;
+        const signature = signatureImage || sessionStorage.getItem('userSignature');
+        
+        return {
+          id: doc.id,
+          imageUrl: doc.imageUrl,
+          pdfUrl: doc.pdfUrl,
+          type: doc.type,
+          signaturePositions: positions.map(pos => ({
+            ...pos,
+            signed: signedPositions[pos.id] || false,
+            // 서명된 필드에 서명 이미지 URL 추가
+            signatureImage: signedPositions[pos.id] ? signature : null
+          })),
+          // 문서 전체에도 서명 이미지 포함
+          signatureImage: signature
+        };
+      });
+      
+      // 세션 및 로컬 스토리지에 완전한 정보 저장
       sessionStorage.setItem('signedDocuments', JSON.stringify(signedDocuments));
       localStorage.setItem('signedDocumentsForDownload', JSON.stringify(signedDocuments));
+      localStorage.setItem('userSignatureForDownload', signatureImage || sessionStorage.getItem('userSignature') || '');
+      localStorage.setItem('hasSignature', 'true');
       
       // 신분증 업로드 페이지로 이동
       router.push('/id-card');
@@ -821,16 +841,16 @@ export default function DocumentSign() {
                       }}
                       onClick={(e) => {
                         if (isCustomMode) {
+                          // 직접서명위치지정 모드에서는 클릭시 바로 삭제
                           e.stopPropagation();
                           removeSignaturePosition(position.id);
-                        } else if (signedPositions[position.id]) {
-                          // 기본 모드에서 서명된 위치 클릭시 서명 삭제
-                          e.stopPropagation();
-                          removeSignaturePosition(position.id);
-                        } else {
-                          // 기본 모드에서 서명되지 않은 위치 클릭시 서명 추가
+                        } else if (!signedPositions[position.id]) {
+                          // 기본 모드에서는 서명되지 않은 위치만 클릭시 서명 추가
                           e.stopPropagation();
                           handleSignatureButtonClick(position.id);
+                        } else {
+                          // 기본 모드에서 서명된 위치 클릭시 이벤트 전파만 중지 (삭제 기능 제거)
+                          e.stopPropagation();
                         }
                       }}
                       onMouseDown={(e) => handleDragStart(e, position.id)}
@@ -849,6 +869,7 @@ export default function DocumentSign() {
                       ) : (
                         <div className="relative w-full h-full flex items-center justify-center">
                           <span className="text-xs text-red-500 font-medium">서명 필요</span>
+                          {/* 직접서명위치지정 모드에서만 삭제 버튼 표시 */}
                           {isCustomMode && (
                             <button 
                               className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
@@ -886,16 +907,16 @@ export default function DocumentSign() {
                       }}
                       onClick={(e) => {
                         if (isCustomMode) {
+                          // 직접서명위치지정 모드에서는 클릭시 바로 삭제
                           e.stopPropagation();
                           removeSignaturePosition(position.id);
-                        } else if (signedPositions[position.id]) {
-                          // 기본 모드에서 서명된 위치 클릭시 서명 삭제
-                          e.stopPropagation();
-                          removeSignaturePosition(position.id);
-                        } else {
-                          // 기본 모드에서 서명되지 않은 위치 클릭시 서명 추가
+                        } else if (!signedPositions[position.id]) {
+                          // 기본 모드에서는 서명되지 않은 위치만 클릭시 서명 추가
                           e.stopPropagation();
                           handleSignatureButtonClick(position.id);
+                        } else {
+                          // 기본 모드에서 서명된 위치 클릭시 이벤트 전파만 중지 (삭제 기능 제거)
+                          e.stopPropagation();
                         }
                       }}
                       onMouseDown={(e) => handleDragStart(e, position.id)}
@@ -914,6 +935,7 @@ export default function DocumentSign() {
                       ) : (
                         <div className="relative w-full h-full flex items-center justify-center">
                           <span className="text-xs text-red-500 font-medium">서명 필요</span>
+                          {/* 직접서명위치지정 모드에서만 삭제 버튼 표시 */}
                           {isCustomMode && (
                             <button 
                               className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
