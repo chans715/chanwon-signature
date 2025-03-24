@@ -76,14 +76,35 @@ export default function SenderDashboard() {
     const fetchData = async () => {
       try {
         await new Promise(resolve => setTimeout(resolve, 1000)); // 로딩 시뮬레이션
-        setRequests(sampleRequests);
+        
+        // 세션 스토리지에서 서명 요청 데이터 가져오기
+        const savedRequestsStr = sessionStorage.getItem('signature_requests');
+        let allRequests = [...sampleRequests];
+        
+        if (savedRequestsStr) {
+          const savedRequests = JSON.parse(savedRequestsStr);
+          // 새 요청을 기존 샘플 데이터 앞에 추가
+          allRequests = [...savedRequests, ...sampleRequests];
+          
+          // ID 기반 중복 제거 (같은 ID가 있는 경우 첫 번째 항목만 유지)
+          const uniqueIds = new Set();
+          allRequests = allRequests.filter(req => {
+            if (uniqueIds.has(req.id)) {
+              return false;
+            }
+            uniqueIds.add(req.id);
+            return true;
+          });
+        }
+        
+        setRequests(allRequests);
         
         // 통계 계산
-        const total = sampleRequests.length;
-        const pending = sampleRequests.filter(req => req.status === 'pending').length;
-        const completed = sampleRequests.filter(req => req.status === 'completed').length;
-        const viewed = sampleRequests.filter(req => req.status === 'viewed').length;
-        const expired = sampleRequests.filter(req => req.status === 'expired').length;
+        const total = allRequests.length;
+        const pending = allRequests.filter(req => req.status === 'pending').length;
+        const completed = allRequests.filter(req => req.status === 'completed').length;
+        const viewed = allRequests.filter(req => req.status === 'viewed').length;
+        const expired = allRequests.filter(req => req.status === 'expired').length;
         
         setStats({ total, pending, completed, viewed, expired });
         setIsLoading(false);

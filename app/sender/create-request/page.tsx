@@ -60,6 +60,11 @@ export default function CreateRequest() {
   const [resizingField, setResizingField] = useState<number | null>(null);
   const [resizeStartPos, setResizeStartPos] = useState<{x: number, y: number} | null>(null);
   
+  // 드래그를 위한 상태 변수 추가
+  const [draggingField, setDraggingField] = useState<number | null>(null);
+  const [dragStartPos, setDragStartPos] = useState<{x: number, y: number} | null>(null);
+  const [fieldOffset, setFieldOffset] = useState<{x: number, y: number} | null>(null);
+  
   const validatePhoneNumber = (phone: string) => {
     const phoneRegex = /^[0-9]{11}$/;
     return phoneRegex.test(phone);
@@ -214,20 +219,34 @@ export default function CreateRequest() {
   const handleSignatureFieldMouseDown = (docIndex: number, fieldIndex: number, e: React.MouseEvent) => {
     // 리사이징 핸들을 클릭한 경우에만 리사이징 시작
     const target = e.target as HTMLElement;
-    if (!target.classList.contains('resize-handle')) {
+    if (target.classList.contains('resize-handle')) {
+      e.stopPropagation();
+      setResizingField(fieldIndex);
+      setResizeStartPos({
+        x: e.clientX,
+        y: e.clientY
+      });
+      e.preventDefault();
       return;
     }
     
+    // 드래그 시작 - 필드 본체를 클릭한 경우
     e.stopPropagation();
-    setResizingField(fieldIndex);
-    setResizeStartPos({
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setDraggingField(fieldIndex);
+    setDragStartPos({
       x: e.clientX,
       y: e.clientY
+    });
+    setFieldOffset({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
     });
     e.preventDefault();
   };
 
   const handleMouseMove = (e: MouseEvent) => {
+    // 리사이징 로직
     if (resizingField !== null && resizeStartPos) {
       const currentPositions = [...signaturePositionsPerDoc];
       const field = currentPositions[currentDocumentIndex][resizingField];
@@ -248,15 +267,41 @@ export default function CreateRequest() {
         y: e.clientY
       });
     }
+    
+    // 드래그 로직
+    if (draggingField !== null && dragStartPos && fieldOffset) {
+      const docContainer = document.getElementById('document-container');
+      if (!docContainer) return;
+      
+      const containerRect = docContainer.getBoundingClientRect();
+      const currentPositions = [...signaturePositionsPerDoc];
+      const field = currentPositions[currentDocumentIndex][draggingField];
+      
+      // 마우스 위치에서 컨테이너 위치와 필드 내 오프셋을 고려하여 새 위치 계산
+      let newX = e.clientX - containerRect.left - fieldOffset.x;
+      let newY = e.clientY - containerRect.top - fieldOffset.y;
+      
+      // 컨테이너 경계 내로 제한
+      newX = Math.max(0, Math.min(newX, containerRect.width - field.width));
+      newY = Math.max(0, Math.min(newY, containerRect.height - field.height));
+      
+      field.x = newX;
+      field.y = newY;
+      
+      setSignaturePositionsPerDoc(currentPositions);
+    }
   };
 
   const handleMouseUp = () => {
     setResizingField(null);
     setResizeStartPos(null);
+    setDraggingField(null);
+    setDragStartPos(null);
+    setFieldOffset(null);
   };
 
   useEffect(() => {
-    if (resizingField !== null) {
+    if (resizingField !== null || draggingField !== null) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
       
@@ -265,7 +310,7 @@ export default function CreateRequest() {
         window.removeEventListener('mouseup', handleMouseUp);
       };
     }
-  }, [resizingField, resizeStartPos]);
+  }, [resizingField, resizeStartPos, draggingField, dragStartPos, fieldOffset, currentDocumentIndex]);
   
   const renderSignatureFields = () => {
     const currentPositions = signaturePositionsPerDoc[currentDocumentIndex] || [];
@@ -280,7 +325,7 @@ export default function CreateRequest() {
           height: pos.height,
           border: '2px solid red',
           backgroundColor: 'rgba(255, 0, 0, 0.1)',
-          cursor: 'default',
+          cursor: draggingField === index ? 'grabbing' : 'grab',
           display: 'flex',
           flexDirection: 'row',
           justifyContent: 'space-between',
@@ -369,11 +414,21 @@ export default function CreateRequest() {
   
   const sendKakaoNotification = async (recipientName: string, recipientPhone: string) => {
     try {
-      // 카카오톡 메시지 API 호출 (여기서는 시뮬레이션)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      console.log(`카카오톡 알림이 ${recipientName} (${recipientPhone})에게 전송되었습니다.`);
+      // 실제 환경에서는 카카오 알림톡 API 호출이 필요
+      // 현재는 시뮬레이션으로 대체
+      await new Promise(resolve => setTimeout(resolve, 1500)); // API 호출 시뮬레이션
+      
+      // 카카오 알림톡 발송 로그
+      console.log(`카카오 알림톡이 ${recipientName}님(${recipientPhone})에게 발송되었습니다.`);
+      console.log(`내용: ${formData.title} 문서에 대한 서명 요청이 있습니다.`);
+      
+      // 성공 로그
+      console.log('카카오 알림톡 발송 성공');
+      
+      return true;
     } catch (error) {
-      console.error('카카오톡 알림 전송 중 오류가 발생했습니다.', error);
+      console.error('카카오 알림톡 발송 중 오류가 발생했습니다.', error);
+      throw new Error('카카오 알림톡 발송 실패');
     }
   };
   
@@ -392,18 +447,30 @@ export default function CreateRequest() {
     }
 
     try {
-      const documentWithSenderInfo = {
-        ...formData,
-        senderInfo,
-        signaturePositions: signaturePositionsPerDoc,
+      const requestId = `REQ-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+      
+      const newRequest = {
+        id: requestId,
+        title: formData.title,
+        recipient: formData.recipientName,
+        recipientEmail: '',
+        recipientPhone: formData.recipientPhone,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        documentCount: uploadedFiles.length,
+        message: formData.message,
+        expiryDate: formData.expiryDate
       };
+      
+      // 세션 스토리지에 요청 저장 (대시보드에서 표시하기 위함)
+      const existingRequests = JSON.parse(sessionStorage.getItem('signature_requests') || '[]');
+      existingRequests.unshift(newRequest); // 새 요청을 목록 맨 앞에 추가
+      sessionStorage.setItem('signature_requests', JSON.stringify(existingRequests));
 
-      // 서명 요청 생성 API 호출 (시뮬레이션)
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // 카카오톡 알림 전송
+      // 카카오톡 알림 전송 (실제로는 API를 호출해야 함)
       await sendKakaoNotification(formData.recipientName, formData.recipientPhone);
       
+      // 발송 완료 다이얼로그 표시
       setShowSuccessDialog(true);
     } catch (error) {
       addError('error', '서명 요청 생성 중 오류가 발생했습니다.', true, 5000);
@@ -412,6 +479,7 @@ export default function CreateRequest() {
     }
   };
 
+  // 발송 성공 확인 버튼 클릭 시 대시보드로 이동
   const handleSuccessConfirm = () => {
     setShowSuccessDialog(false);
     router.push('/sender/dashboard');
@@ -447,9 +515,16 @@ export default function CreateRequest() {
         {showSuccessDialog && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 max-w-sm w-full">
-              <h3 className="text-lg font-medium mb-4">알림</h3>
-              <p className="text-gray-600 mb-6">전송되었습니다.</p>
-              <div className="flex justify-end">
+              <div className="text-center mb-4">
+                <svg className="mx-auto h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <h3 className="text-lg font-medium text-gray-900 mt-2">발송이 완료되었습니다</h3>
+              </div>
+              <p className="text-gray-600 text-center mb-6">
+                {formData.recipientName}님에게 카카오 알림톡으로 서명 요청이 발송되었습니다.
+              </p>
+              <div className="flex justify-center">
                 <Button
                   variant="primary"
                   onClick={handleSuccessConfirm}
@@ -698,6 +773,7 @@ export default function CreateRequest() {
               <div className="space-y-6">
                 {documentPreviews.length > 0 && renderDocumentControls()}
                 <div 
+                  id="document-container"
                   className="bg-gray-100 border border-gray-300 rounded-md p-4 h-[400px] flex items-center justify-center relative" 
                   onClick={handleDocumentClick}
                   style={{ 
@@ -732,6 +808,7 @@ export default function CreateRequest() {
                       <ul className="text-sm text-yellow-700 list-disc pl-5">
                         <li>서명 필드를 클릭하면 삭제 여부를 확인합니다.</li>
                         <li>오른쪽 하단의 빨간색 모서리(<span className="inline-block w-3 h-3 bg-red-400 align-text-bottom"></span>)를 드래그하여 크기를 조정할 수 있습니다.</li>
+                        <li>서명 필드를 드래그하여 원하는 위치로 이동할 수 있습니다.</li>
                       </ul>
                     </div>
                   </div>
