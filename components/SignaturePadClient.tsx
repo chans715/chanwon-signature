@@ -38,7 +38,7 @@ const SignaturePadClient: React.FC<SignaturePadClientProps> = ({
     context.lineJoin = 'round';
     context.strokeStyle = '#000000';
     
-    // 캔버스 배경을 투명하게 설정
+    // 캔버스 배경을 투명하게 설정 - 배경 채우기 제거
     context.clearRect(0, 0, canvas.width, canvas.height);
     
     setCtx(context);
@@ -67,6 +67,9 @@ const SignaturePadClient: React.FC<SignaturePadClientProps> = ({
         // 이미지 복원
         const img = new Image();
         img.onload = () => {
+          // 배경 지우기
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          // 이미지 그리기
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         };
         img.src = currentImage;
@@ -248,7 +251,7 @@ const SignaturePadClient: React.FC<SignaturePadClientProps> = ({
           }`}
           style={{ 
             background: 'transparent',
-            border: '1px dashed #e5e7eb'
+            touchAction: 'none',
           }}
           onMouseDown={startDrawing}
           onMouseMove={draw}
@@ -273,32 +276,26 @@ const SignaturePadClient: React.FC<SignaturePadClientProps> = ({
             저장됨
           </div>
         )}
+
+        {/* 서명 안내선 */}
+        <div className="absolute bottom-10 left-0 right-0 border-t border-dashed border-gray-300 pointer-events-none opacity-30"></div>
       </div>
       
-      <div className="flex justify-center space-x-4 mt-6">
-        <Button
+      <div className="flex justify-between mt-4 gap-2">
+        <Button 
           onClick={clearCanvas}
           variant="outline"
           size="sm"
-          icon={
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          }
         >
           지우기
         </Button>
-        <Button
+        <Button 
           onClick={saveSignature}
-          variant={isSaved ? "success" : "primary"}
+          variant={hasDrawn ? "primary" : "secondary"}
           size="sm"
-          icon={
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-            </svg>
-          }
+          disabled={!hasDrawn}
         >
-          {isSaved ? '다시 저장' : '저장'}
+          저장
         </Button>
       </div>
     </div>

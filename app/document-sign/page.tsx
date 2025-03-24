@@ -235,7 +235,7 @@ export default function DocumentSign() {
       // 서명 이미지 설정
       setSignatureImage(signatureData);
       
-      // 새로운 서명 위치 상태 생성 (함수 바깥에서 사용할 변수)
+      // 새로운 서명 위치 상태 생성
       const newSignedPositions = { ...signedPositions };
       newSignedPositions[positionId] = true;
       
@@ -257,37 +257,43 @@ export default function DocumentSign() {
           type: currentDocument.type,
           signaturePositions: currentSignaturePositions.map(pos => ({
             ...pos,
-            // 현재 문서에서의 서명 위치만 업데이트
             signed: pos.id === positionId
           }))
         };
         newDocuments.push(newDoc);
         console.log('추가된 문서:', newDoc);
       } else {
-        // 기존 문서 업데이트
+        // 기존 문서 업데이트 - 현재 문서의 서명 위치만 업데이트
         console.log('기존 문서 업데이트:', docIndex, currentDocIndex + 1);
-        const signaturePositionsUpdate = currentSignaturePositions.map(pos => ({
+        
+        // 현재 문서의 서명 위치 가져오기
+        const currentPositions = [...newDocuments[docIndex].signaturePositions];
+        
+        // 서명 위치 업데이트
+        const updatedPositions = currentPositions.map(pos => ({
           ...pos,
-          // 현재 문서에서의 서명 위치만 업데이트
-          signed: pos.id === positionId || 
-                  (newDocuments[docIndex].signaturePositions.find(p => p.id === pos.id)?.signed || false)
+          // 현재 클릭한 위치만 signed 상태 변경
+          signed: pos.id === positionId ? true : pos.signed
         }));
+        
+        // 문서 업데이트
         newDocuments[docIndex] = {
           ...newDocuments[docIndex],
-          signaturePositions: signaturePositionsUpdate
+          signaturePositions: updatedPositions
         };
-        console.log('업데이트된 문서 서명 위치:', signaturePositionsUpdate);
+        
+        console.log('업데이트된 문서 서명 위치:', updatedPositions);
       }
       
       // 문서 상태 업데이트
       setDocuments(newDocuments);
       
-      // 서명된 문서 정보를 세션 스토리지에 저장 (지속성 보장)
+      // 서명된 문서 정보를 세션 스토리지에 저장
       try {
         const serializedData = JSON.stringify(newDocuments);
         sessionStorage.setItem('signedDocuments', serializedData);
         
-        // 서명 상태도 별도로 저장 (추가 백업)
+        // 서명 상태도 별도로 저장
         sessionStorage.setItem('signedPositions', JSON.stringify(newSignedPositions));
         
         console.log('세션 스토리지에 문서 및 서명 상태 저장 성공');
@@ -313,24 +319,17 @@ export default function DocumentSign() {
     
     if (docIndex !== -1) {
       const signedPositionsInDoc = documents[docIndex].signaturePositions;
-      const result = currentSignaturePositions.every(pos => {
-        const matchedPos = signedPositionsInDoc.find(p => p.id === pos.id);
-        return matchedPos && matchedPos.signed;
-      });
       
-      // 디버깅 로그
-      console.log('서명 확인:', 
-        currentSignaturePositions.map(pos => ({
-          id: pos.id, 
-          signed: signedPositionsInDoc.find(p => p.id === pos.id)?.signed || false
-        }))
-      );
+      // 현재 문서의 모든 서명 위치가 signed 상태인지 확인
+      const result = signedPositionsInDoc.length > 0 && signedPositionsInDoc.every(pos => pos.signed === true);
+      
+      console.log(`문서 ${currentDocIndex + 1} 서명 완료 여부:`, result, signedPositionsInDoc);
       
       return result;
     }
     
-    // 현재 문서가 documents 배열에 없는 경우 signedPositions 객체를 사용
-    return currentSignaturePositions.every(pos => signedPositions[pos.id] === true);
+    // 문서가 아직 documents 배열에 없는 경우 false 반환
+    return false;
   };
   
   // 문서에 클릭하여 서명 위치 추가
@@ -377,45 +376,40 @@ export default function DocumentSign() {
           pos => pos.id !== positionId
         );
         setCustomSignaturePositions(updatedPositions);
-      }
-    }
-    
-    // 서명 상태에서 해당 위치의 서명 삭제
-    if (signedPositions[positionId]) {
-      const updatedSignedPositions = { ...signedPositions };
-      delete updatedSignedPositions[positionId];
-      setSignedPositions(updatedSignedPositions);
-      
-      // 문서의 서명 위치 상태도 업데이트
-      const newDocuments = [...documents];
-      const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
-      
-      if (docIndex !== -1) {
-        const updatedSignaturePositions = newDocuments[docIndex].signaturePositions.map(pos => {
-          if (pos.id === positionId) {
-            return { ...pos, signed: false };
+        
+        // 서명도 함께 삭제
+        if (signedPositions[positionId]) {
+          const updatedSignedPositions = { ...signedPositions };
+          delete updatedSignedPositions[positionId];
+          setSignedPositions(updatedSignedPositions);
+          
+          // 문서 상태도 업데이트
+          const newDocuments = [...documents];
+          const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
+          
+          if (docIndex !== -1) {
+            newDocuments[docIndex] = {
+              ...newDocuments[docIndex],
+              signaturePositions: newDocuments[docIndex].signaturePositions.filter(
+                pos => pos.id !== positionId
+              )
+            };
+            
+            setDocuments(newDocuments);
+            
+            // 세션 스토리지 업데이트
+            try {
+              sessionStorage.setItem('signedDocuments', JSON.stringify(newDocuments));
+              sessionStorage.setItem('signedPositions', JSON.stringify(updatedSignedPositions));
+            } catch (err) {
+              console.error('세션 스토리지 업데이트 오류:', err);
+            }
           }
-          return pos;
-        });
-        
-        newDocuments[docIndex] = {
-          ...newDocuments[docIndex],
-          signaturePositions: updatedSignaturePositions
-        };
-        
-        setDocuments(newDocuments);
-        
-        // 세션 스토리지 업데이트
-        try {
-          sessionStorage.setItem('signedDocuments', JSON.stringify(newDocuments));
-          sessionStorage.setItem('signedPositions', JSON.stringify(updatedSignedPositions));
-        } catch (err) {
-          console.error('세션 스토리지 업데이트 오류:', err);
         }
+        
+        addError('info', '서명 위치가 삭제되었습니다.', true, 2000);
       }
     }
-    
-    addError('info', '서명 위치가 삭제되었습니다.', true, 2000);
   };
   
   // 서명 위치 드래그 시작
