@@ -55,6 +55,17 @@ export default function DocumentSign() {
   const [imageErrorShown, setImageErrorShown] = useState<Record<number, boolean>>({});
   const [documents, setDocuments] = useState(initialSampleDocuments);
   const [imagesLoaded, setImagesLoaded] = useState(false);
+  const [dragInfo, setDragInfo] = useState<{
+    isDragging: boolean;
+    positionId: string | null;
+    offsetX: number;
+    offsetY: number;
+  }>({
+    isDragging: false,
+    positionId: null,
+    offsetX: 0,
+    offsetY: 0
+  });
   
   // 페이지 로드 시 서명 상태 초기화
   useEffect(() => {
@@ -207,7 +218,7 @@ export default function DocumentSign() {
   
   // 서명 위치에 서명 추가하기
   const addSignature = (positionId: string) => {
-    console.log('서명 추가 시도:', positionId);
+    console.log('서명 추가 시도:', positionId, '문서 인덱스:', currentDocIndex);
     
     // 세션 스토리지에서 서명 가져오기
     const signatureData = sessionStorage.getItem('userSignature');
@@ -246,7 +257,8 @@ export default function DocumentSign() {
           type: currentDocument.type,
           signaturePositions: currentSignaturePositions.map(pos => ({
             ...pos,
-            signed: pos.id === positionId || newSignedPositions[pos.id] || false
+            // 현재 문서에서의 서명 위치만 업데이트
+            signed: pos.id === positionId
           }))
         };
         newDocuments.push(newDoc);
@@ -256,7 +268,9 @@ export default function DocumentSign() {
         console.log('기존 문서 업데이트:', docIndex, currentDocIndex + 1);
         const signaturePositionsUpdate = currentSignaturePositions.map(pos => ({
           ...pos,
-          signed: pos.id === positionId || newSignedPositions[pos.id] || false
+          // 현재 문서에서의 서명 위치만 업데이트
+          signed: pos.id === positionId || 
+                  (newDocuments[docIndex].signaturePositions.find(p => p.id === pos.id)?.signed || false)
         }));
         newDocuments[docIndex] = {
           ...newDocuments[docIndex],
@@ -294,14 +308,28 @@ export default function DocumentSign() {
       return true; // 서명 위치가 없으면 이미 완료된 것으로 간주
     }
     
-    // 디버깅 로그
-    console.log('서명 확인:', 
-      currentSignaturePositions.map(pos => ({
-        id: pos.id, 
-        signed: signedPositions[pos.id] || false
-      }))
-    );
+    // 현재 문서의 signaturePositions 배열에서 signed 속성 확인
+    const docIndex = documents.findIndex(doc => doc.id === currentDocIndex + 1);
     
+    if (docIndex !== -1) {
+      const signedPositionsInDoc = documents[docIndex].signaturePositions;
+      const result = currentSignaturePositions.every(pos => {
+        const matchedPos = signedPositionsInDoc.find(p => p.id === pos.id);
+        return matchedPos && matchedPos.signed;
+      });
+      
+      // 디버깅 로그
+      console.log('서명 확인:', 
+        currentSignaturePositions.map(pos => ({
+          id: pos.id, 
+          signed: signedPositionsInDoc.find(p => p.id === pos.id)?.signed || false
+        }))
+      );
+      
+      return result;
+    }
+    
+    // 현재 문서가 documents 배열에 없는 경우 signedPositions 객체를 사용
     return currentSignaturePositions.every(pos => signedPositions[pos.id] === true);
   };
   
@@ -339,28 +367,181 @@ export default function DocumentSign() {
   
   // 서명 위치 삭제
   const removeSignaturePosition = (positionId: string) => {
-    const updatedPositions = [...customSignaturePositions];
-    updatedPositions[currentDocIndex] = updatedPositions[currentDocIndex].filter(
-      pos => pos.id !== positionId
-    );
-    setCustomSignaturePositions(updatedPositions);
+    console.log('서명 위치 삭제 시도:', positionId);
     
-    // 관련 서명도 삭제
+    // 커스텀 모드에서만 직접 서명 위치를 삭제 가능
+    if (isCustomMode) {
+      const updatedPositions = [...customSignaturePositions];
+      if (updatedPositions[currentDocIndex]) {
+        updatedPositions[currentDocIndex] = updatedPositions[currentDocIndex].filter(
+          pos => pos.id !== positionId
+        );
+        setCustomSignaturePositions(updatedPositions);
+      }
+    }
+    
+    // 서명 상태에서 해당 위치의 서명 삭제
     if (signedPositions[positionId]) {
       const updatedSignedPositions = { ...signedPositions };
       delete updatedSignedPositions[positionId];
       setSignedPositions(updatedSignedPositions);
+      
+      // 문서의 서명 위치 상태도 업데이트
+      const newDocuments = [...documents];
+      const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
+      
+      if (docIndex !== -1) {
+        const updatedSignaturePositions = newDocuments[docIndex].signaturePositions.map(pos => {
+          if (pos.id === positionId) {
+            return { ...pos, signed: false };
+          }
+          return pos;
+        });
+        
+        newDocuments[docIndex] = {
+          ...newDocuments[docIndex],
+          signaturePositions: updatedSignaturePositions
+        };
+        
+        setDocuments(newDocuments);
+        
+        // 세션 스토리지 업데이트
+        try {
+          sessionStorage.setItem('signedDocuments', JSON.stringify(newDocuments));
+          sessionStorage.setItem('signedPositions', JSON.stringify(updatedSignedPositions));
+        } catch (err) {
+          console.error('세션 스토리지 업데이트 오류:', err);
+        }
+      }
     }
     
     addError('info', '서명 위치가 삭제되었습니다.', true, 2000);
   };
   
-  // 다음 문서로 이동
+  // 서명 위치 드래그 시작
+  const handleDragStart = (e: React.MouseEvent<HTMLDivElement>, positionId: string) => {
+    if (!isCustomMode) return;
+    
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+    
+    setDragInfo({
+      isDragging: true,
+      positionId,
+      offsetX,
+      offsetY
+    });
+    
+    console.log('드래그 시작:', positionId);
+  };
+  
+  // 서명 위치 드래그 중
+  const handleDragMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!dragInfo.isDragging || !isCustomMode) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const containerRect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - containerRect.left - dragInfo.offsetX;
+    const y = e.clientY - containerRect.top - dragInfo.offsetY;
+    
+    // 컨테이너 경계 확인
+    const updatedPositions = [...customSignaturePositions];
+    const positionIndex = updatedPositions[currentDocIndex]?.findIndex(
+      pos => pos.id === dragInfo.positionId
+    );
+    
+    if (positionIndex !== -1 && positionIndex !== undefined) {
+      const position = updatedPositions[currentDocIndex][positionIndex];
+      const width = position.width;
+      const height = position.height;
+      
+      // 컨테이너 내에 위치하도록 제한
+      const newX = Math.max(0, Math.min(x, containerRect.width - width));
+      const newY = Math.max(0, Math.min(y, containerRect.height - height));
+      
+      updatedPositions[currentDocIndex][positionIndex] = {
+        ...position,
+        x: newX,
+        y: newY
+      };
+      
+      setCustomSignaturePositions(updatedPositions);
+    }
+  };
+  
+  // 서명 위치 드래그 종료
+  const handleDragEnd = () => {
+    if (!dragInfo.isDragging || !isCustomMode) return;
+    
+    setDragInfo({
+      isDragging: false,
+      positionId: null,
+      offsetX: 0,
+      offsetY: 0
+    });
+    
+    console.log('드래그 종료');
+    
+    // 변경된 서명 위치를 저장
+    const updatedDocuments = [...documents];
+    const docIndex = updatedDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
+    
+    if (docIndex !== -1 && customSignaturePositions[currentDocIndex]) {
+      // 타입 에러 수정: signed 속성을 명시적으로 지정
+      const updatedPositions = customSignaturePositions[currentDocIndex].map(pos => ({
+        ...pos,
+        signed: pos.signed === true // undefined인 경우 false로 설정
+      }));
+      
+      updatedDocuments[docIndex] = {
+        ...updatedDocuments[docIndex],
+        signaturePositions: updatedPositions
+      };
+      
+      setDocuments(updatedDocuments);
+      
+      // 세션 스토리지 업데이트
+      try {
+        sessionStorage.setItem('signedDocuments', JSON.stringify(updatedDocuments));
+      } catch (err) {
+        console.error('세션 스토리지 업데이트 오류:', err);
+      }
+    }
+  };
+  
+  // 로컬 스토리지에 서명된 문서를 저장하는 함수 추가
+  const saveSignedDocumentForDownload = () => {
+    // 서명된 문서 정보 저장 (문서와 서명 위치 포함)
+    const signedDocuments = documents.map((doc, idx) => ({
+      id: doc.id,
+      imageUrl: doc.imageUrl,
+      pdfUrl: doc.pdfUrl,
+      type: doc.type,
+      signaturePositions: doc.signaturePositions
+    }));
+    
+    // 로컬 스토리지에 저장 (다운로드용)
+    try {
+      localStorage.setItem('signedDocumentsForDownload', JSON.stringify(signedDocuments));
+      console.log('다운로드를 위해 서명된 문서 저장 완료');
+    } catch (err) {
+      console.error('로컬 스토리지 저장 오류:', err);
+    }
+  };
+  
+  // 기존 goToNextDocument 함수를 수정
   const goToNextDocument = () => {
     if (!isCurrentDocumentFullySigned()) {
       addError('warning', '모든 서명 위치에 서명을 추가해주세요.', true, 3000);
       return;
     }
+    
+    // 다운로드를 위해 현재 서명 상태 저장
+    saveSignedDocumentForDownload();
     
     if (currentDocIndex < totalDocuments - 1) {
       setCurrentDocIndex(prev => prev + 1);
@@ -385,6 +566,7 @@ export default function DocumentSign() {
         }))
       }));
       sessionStorage.setItem('signedDocuments', JSON.stringify(signedDocuments));
+      localStorage.setItem('signedDocumentsForDownload', JSON.stringify(signedDocuments));
       
       // 신분증 업로드 페이지로 이동
       router.push('/id-card');
@@ -487,6 +669,9 @@ export default function DocumentSign() {
               className="relative border border-gray-300 rounded-md mb-6 overflow-hidden"
               onClick={isCustomMode ? handleDocumentClick : undefined}
               style={{ cursor: isCustomMode ? 'crosshair' : 'default' }}
+              onMouseMove={handleDragMove}
+              onMouseUp={handleDragEnd}
+              onMouseLeave={handleDragEnd}
             >
               {/* 문서 표시 (이미지 또는 PDF) */}
               {currentDocument.type === 'image' ? (
@@ -555,6 +740,7 @@ export default function DocumentSign() {
                           removeSignaturePosition(position.id);
                         }
                       }}
+                      onMouseDown={(e) => handleDragStart(e, position.id)}
                     >
                       {signedPositions[position.id] ? (
                         <img 
@@ -611,6 +797,7 @@ export default function DocumentSign() {
                           removeSignaturePosition(position.id);
                         }
                       }}
+                      onMouseDown={(e) => handleDragStart(e, position.id)}
                     >
                       {signedPositions[position.id] ? (
                         <img 
