@@ -20,6 +20,15 @@ const PDFViewer = dynamic(() => import('@/components/PDFViewer'), {
   )
 });
 
+// 인터페이스를 업데이트합니다
+interface Document {
+  id: number;
+  imageUrl: string;
+  pdfUrl: null | string;
+  type: string;
+  signaturePositions: SignaturePosition[];
+}
+
 // 인터페이스 확장: 서명 위치에 화면 표시용 속성 추가
 interface SignaturePosition {
   id: string;
@@ -104,7 +113,7 @@ export default function DocumentSign() {
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [customSignaturePositions, setCustomSignaturePositions] = useState<Array<Array<SignaturePosition>>>([]);
   const [imageErrorShown, setImageErrorShown] = useState<Record<number, boolean>>({});
-  const [documents, setDocuments] = useState(initialSampleDocuments);
+  const [documents, setDocuments] = useState<Document[]>(initialSampleDocuments);
   const [imagesLoaded, setImagesLoaded] = useState(false);
   const [dragInfo, setDragInfo] = useState<{
     isDragging: boolean;
