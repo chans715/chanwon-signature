@@ -411,7 +411,7 @@ export default function Complete() {
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                         />
                         <label htmlFor={`doc-${doc.id}`} className="ml-2 block text-sm text-gray-700">
-                          문서 {doc.id} ({doc.signaturePositions.filter(pos => pos.signed).length}개 서명)
+                          문서 {doc.id} ({doc.signaturePositions.filter((pos: any) => pos.signed).length}개 서명)
                         </label>
                       </div>
                     ))}
@@ -419,7 +419,7 @@ export default function Complete() {
                 </div>
                 
                 <Button
-                  onClick={() => handleDownload(doc.id)}
+                  onClick={() => selectedCount > 0 && handleDownload(signedDocuments[0].id)}
                   variant="primary"
                   fullWidth
                   loading={isGeneratingPdf}
@@ -481,7 +481,7 @@ export default function Complete() {
                         <div className="flex justify-between items-center">
                           <span className="text-sm font-medium text-gray-700">문서 {doc.id}</span>
                           <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
-                            {doc.signaturePositions?.filter(pos => pos.signed).length || 0}개 서명
+                            {doc.signaturePositions?.filter((pos: any) => pos.signed).length || 0}개 서명
                           </span>
                         </div>
                       </div>
