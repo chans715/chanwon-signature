@@ -250,7 +250,17 @@ export default function DocumentSign() {
       
       // 문서 상태 업데이트 준비
       const newDocuments = [...documents];
-      const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
+      
+      // 문서 ID가 아닌 인덱스로 문서 찾기
+      let docIndex = -1;
+      
+      // 현재 보고 있는 문서 인덱스로 찾기
+      if (currentDocIndex >= 0 && currentDocIndex < newDocuments.length) {
+        docIndex = currentDocIndex;
+      } else {
+        // ID로 찾기 (이전 로직)
+        docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
+      }
       
       if (docIndex === -1) {
         // 문서가 없으면 새로 추가
@@ -707,11 +717,8 @@ export default function DocumentSign() {
       return;
     }
 
-    // 서명 상태 업데이트
-    setSignedPositions(prev => ({
-      ...prev,
-      [positionId]: true
-    }));
+    // 서명 추가 함수 호출
+    addSignature(positionId);
     
     // 로그 추가 - 클릭된 서명 위치 정보 출력
     const position = currentSignaturePositions.find(pos => pos.id === positionId);
