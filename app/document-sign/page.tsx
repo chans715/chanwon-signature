@@ -32,11 +32,11 @@ interface Document {
 // 인터페이스 확장: 서명 위치에 화면 표시용 속성 추가
 interface SignaturePosition {
   id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  signed?: boolean;
+  x: number;        // 원본 이미지 기준 X 좌표
+  y: number;        // 원본 이미지 기준 Y 좌표
+  width: number;    // 원본 이미지 기준 너비
+  height: number;   // 원본 이미지 기준 높이
+  signed?: boolean; // 서명 완료 여부
   // 화면 표시용 속성 추가
   displayX?: number;
   displayY?: number;
@@ -404,9 +404,9 @@ export default function DocumentSign() {
     return false;
   };
   
-  // 문서에 클릭하여 서명 위치 추가
+  // 문서에 클릭하여 서명 위치 추가 (좌표 처리 로직 개선)
   const handleDocumentClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // 이미지 요소 찾기 및 크기 비율 계산
+    // 이미지 요소 찾기
     const imageContainer = e.currentTarget;
     const imageElement = imageContainer.querySelector('img') as HTMLImageElement;
     if (!imageElement) {
@@ -414,13 +414,13 @@ export default function DocumentSign() {
       return;
     }
     
-    // 컨테이너와 이미지의 위치 및 크기 계산
+    // 이미지와 컨테이너의 위치 및 크기 계산
     const containerRect = imageContainer.getBoundingClientRect();
     const imageRect = imageElement.getBoundingClientRect();
     
     // 이미지의 원본 크기와 표시 크기 가져오기
-    const displayWidth = imageElement.clientWidth;
-    const displayHeight = imageElement.clientHeight;
+    const displayWidth = imageRect.width;
+    const displayHeight = imageRect.height;
     const naturalWidth = imageElement.naturalWidth || displayWidth;
     const naturalHeight = imageElement.naturalHeight || displayHeight;
     
@@ -443,60 +443,59 @@ export default function DocumentSign() {
     }
     
     // 디버깅용 로그
-    console.log('컨테이너 크기:', containerRect.width, 'x', containerRect.height);
-    console.log('이미지 크기:', displayWidth, 'x', displayHeight);
-    console.log('이미지 오프셋:', imageOffsetX, ',', imageOffsetY);
     console.log('클릭 위치 (컨테이너 기준):', clickX, ',', clickY);
+    console.log('이미지 위치 (컨테이너 내):', imageOffsetX, ',', imageOffsetY);
     console.log('클릭 위치 (이미지 기준):', imageClickX, ',', imageClickY);
+    console.log('이미지 크기 (화면):', displayWidth, 'x', displayHeight);
+    console.log('이미지 크기 (원본):', naturalWidth, 'x', naturalHeight);
     
-    // 크기 비율 계산
+    // 비율 계산
     const widthRatio = naturalWidth / displayWidth;
     const heightRatio = naturalHeight / displayHeight;
     
-    // 원본 이미지 기준 좌표 계산
-    const originalX = Math.round(imageClickX * widthRatio);
-    const originalY = Math.round(imageClickY * heightRatio);
-    
-    // 서명 필드 크기 (원본과 화면 표시용 모두 계산)
-    const originalWidth = Math.round(150 * widthRatio);
-    const originalHeight = Math.round(60 * heightRatio);
+    // 기본 서명 필드 크기 (표시용)
     const displayFieldWidth = 150;
     const displayFieldHeight = 60;
     
-    // 화면에 표시할 서명 필드 위치
-    // 이미지 내 상대 위치 + 이미지 오프셋
-    const displayX = imageClickX - (displayFieldWidth / 2) + imageOffsetX;
-    const displayY = imageClickY - (displayFieldHeight / 2) + imageOffsetY;
+    // 중앙에 서명 필드가 표시되도록 클릭 위치 조정 (표시용)
+    const centeredClickX = imageClickX - (displayFieldWidth / 2);
+    const centeredClickY = imageClickY - (displayFieldHeight / 2);
     
-    console.log(`서명 필드 위치: 화면(${displayX}, ${displayY}) / 원본(${originalX}, ${originalY})`);
-    console.log(`변환 비율: 가로(${widthRatio.toFixed(2)}) 세로(${heightRatio.toFixed(2)})`);
+    // 원본 이미지 좌표로 변환
+    const originalX = Math.round(imageClickX * widthRatio);
+    const originalY = Math.round(imageClickY * heightRatio);
+    
+    // 원본 이미지에서의 서명 필드 크기
+    const originalWidth = Math.round(displayFieldWidth * widthRatio);
+    const originalHeight = Math.round(displayFieldHeight * heightRatio);
+    
+    console.log('서명 필드 위치 (화면 기준):', centeredClickX, ',', centeredClickY);
+    console.log('서명 필드 위치 (원본 기준):', originalX, ',', originalY);
+    console.log('서명 필드 크기 (화면):', displayFieldWidth, 'x', displayFieldHeight);
+    console.log('서명 필드 크기 (원본):', originalWidth, 'x', originalHeight);
+    console.log('변환 비율:', widthRatio.toFixed(2), 'x', heightRatio.toFixed(2));
     
     // 새 서명 위치 ID 생성
     const newPositionId = `${isCustomMode ? 'custom' : 'default'}-${currentDocIndex}-${Date.now()}`;
     
-    // 현재 문서의 서명 위치 배열 복사
-    let updatedPositions;
+    // 새 서명 위치 생성 (원본 이미지 기준으로 저장)
+    const newPosition: SignaturePosition = {
+      id: newPositionId,
+      x: originalX,
+      y: originalY,
+      width: originalWidth,
+      height: originalHeight,
+      signed: false
+    };
     
     if (isCustomMode) {
       // 커스텀 모드에서는 customSignaturePositions 배열 사용
-      updatedPositions = [...customSignaturePositions];
+      const updatedPositions = [...customSignaturePositions];
       if (!updatedPositions[currentDocIndex]) {
         updatedPositions[currentDocIndex] = [];
       }
       
-      // 새 서명 위치 추가 (원본 및 표시용 정보 포함)
-      updatedPositions[currentDocIndex].push({
-        id: newPositionId,
-        x: originalX,
-        y: originalY,
-        width: originalWidth,
-        height: originalHeight,
-        displayX: displayX,
-        displayY: displayY,
-        displayWidth: displayFieldWidth,
-        displayHeight: displayFieldHeight
-      });
-      
+      updatedPositions[currentDocIndex].push(newPosition);
       setCustomSignaturePositions(updatedPositions);
     } else {
       // 기본 모드에서는 documents 배열 직접 수정
@@ -504,20 +503,6 @@ export default function DocumentSign() {
       const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
       
       if (docIndex !== -1) {
-        // 새 서명 위치 추가 (원본 및 표시용 정보 포함)
-        const newPosition = {
-          id: newPositionId,
-          x: originalX,
-          y: originalY,
-          width: originalWidth,
-          height: originalHeight,
-          displayX: displayX,
-          displayY: displayY,
-          displayWidth: displayFieldWidth,
-          displayHeight: displayFieldHeight,
-          signed: false
-        };
-        
         newDocuments[docIndex].signaturePositions.push(newPosition);
         setDocuments(newDocuments);
         
@@ -857,6 +842,27 @@ export default function DocumentSign() {
     addError('success', '서명이 추가되었습니다.', true, 1500);
   };
   
+  // 원본 이미지 좌표를 화면 표시용 좌표로 변환하는 함수
+  const convertToDisplayCoords = (pos: SignaturePosition, imageElement: HTMLImageElement) => {
+    // 이미지의 표시 크기와 원본 크기
+    const displayWidth = imageElement.clientWidth;
+    const displayHeight = imageElement.clientHeight;
+    const naturalWidth = imageElement.naturalWidth || displayWidth;
+    const naturalHeight = imageElement.naturalHeight || displayHeight;
+    
+    // 비율 계산
+    const widthRatio = naturalWidth / displayWidth;
+    const heightRatio = naturalHeight / displayHeight;
+    
+    // 원본 좌표를 화면 표시용 좌표로 변환
+    return {
+      displayX: Math.round(pos.x / widthRatio),
+      displayY: Math.round(pos.y / heightRatio),
+      displayWidth: Math.round(pos.width / widthRatio),
+      displayHeight: Math.round(pos.height / heightRatio)
+    };
+  };
+  
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-12">
@@ -971,64 +977,76 @@ export default function DocumentSign() {
                   )}
                   
                   {/* 서명 위치 표시 */}
-                  {currentSignaturePositions.map((position) => (
-                    <div
-                      key={position.id}
-                      className={`absolute border-2 ${
-                        signedPositions[position.id] ? 'border-green-500 bg-green-50/30' : 'border-red-500 animate-pulse'
-                      } rounded-md flex items-center justify-center`}
-                      style={{
-                        left: `${position.displayX !== undefined ? position.displayX : position.x}px`,
-                        top: `${position.displayY !== undefined ? position.displayY : position.y}px`,
-                        width: `${position.displayWidth !== undefined ? position.displayWidth : 150}px`,
-                        height: `${position.displayHeight !== undefined ? position.displayHeight : 60}px`,
-                      }}
-                      onClick={(e) => {
-                        if (isCustomMode) {
-                          // 직접서명위치지정 모드에서는 클릭시 바로 삭제
-                          e.stopPropagation();
-                          removeSignaturePosition(position.id);
-                        } else if (!signedPositions[position.id]) {
-                          // 기본 모드에서는 서명되지 않은 위치만 클릭시 서명 추가
-                          e.stopPropagation();
-                          handleSignatureButtonClick(position.id);
-                        } else {
-                          // 기본 모드에서 서명된 위치 클릭시 이벤트 전파만 중지 (삭제 기능 제거)
-                          e.stopPropagation();
-                        }
-                      }}
-                      onMouseDown={(e) => handleDragStart(e, position.id)}
-                    >
-                      {signedPositions[position.id] ? (
-                        <img 
-                          src={signatureImage || ''} 
-                          alt="서명" 
-                          style={{ 
-                            width: `${(position.displayWidth !== undefined ? position.displayWidth : 150) - 10}px`,
-                            height: `${(position.displayHeight !== undefined ? position.displayHeight : 60) - 10}px`,
-                            objectFit: 'contain',
-                            background: 'transparent'
-                          }}
-                        />
-                      ) : (
-                        <div className="relative w-full h-full flex items-center justify-center">
-                          <span className="text-xs text-red-500 font-medium">서명 필요</span>
-                          {/* 직접서명위치지정 모드에서만 삭제 버튼 표시 */}
-                          {isCustomMode && (
-                            <button 
-                              className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeSignaturePosition(position.id);
-                              }}
-                            >
-                              ×
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                  {currentSignaturePositions.map((position) => {
+                    // 이미지 요소 가져오기
+                    const imageElement = document.querySelector('.relative.w-full.h-full img') as HTMLImageElement;
+                    // 화면 표시용 좌표로 변환 (이미지 요소가 있을 때만)
+                    const displayCoords = imageElement ? convertToDisplayCoords(position, imageElement) : {
+                      displayX: 0,
+                      displayY: 0,
+                      displayWidth: 150,
+                      displayHeight: 60
+                    };
+
+                    return (
+                      <div
+                        key={position.id}
+                        className={`absolute border-2 ${
+                          signedPositions[position.id] ? 'border-green-500 bg-green-50/30' : 'border-red-500 animate-pulse'
+                        } rounded-md flex items-center justify-center`}
+                        style={{
+                          left: `${displayCoords.displayX}px`,
+                          top: `${displayCoords.displayY}px`,
+                          width: `${displayCoords.displayWidth}px`,
+                          height: `${displayCoords.displayHeight}px`,
+                        }}
+                        onClick={(e) => {
+                          if (isCustomMode) {
+                            // 직접서명위치지정 모드에서는 클릭시 바로 삭제
+                            e.stopPropagation();
+                            removeSignaturePosition(position.id);
+                          } else if (!signedPositions[position.id]) {
+                            // 기본 모드에서는 서명되지 않은 위치만 클릭시 서명 추가
+                            e.stopPropagation();
+                            handleSignatureButtonClick(position.id);
+                          } else {
+                            // 기본 모드에서 서명된 위치 클릭시 이벤트 전파만 중지 (삭제 기능 제거)
+                            e.stopPropagation();
+                          }
+                        }}
+                        onMouseDown={(e) => handleDragStart(e, position.id)}
+                      >
+                        {signedPositions[position.id] ? (
+                          <img 
+                            src={signatureImage || ''} 
+                            alt="서명" 
+                            style={{ 
+                              width: `${displayCoords.displayWidth - 10}px`,
+                              height: `${displayCoords.displayHeight - 10}px`,
+                              objectFit: 'contain',
+                              background: 'transparent'
+                            }}
+                          />
+                        ) : (
+                          <div className="relative w-full h-full flex items-center justify-center">
+                            <span className="text-xs text-red-500 font-medium">서명 필요</span>
+                            {/* 직접서명위치지정 모드에서만 삭제 버튼 표시 */}
+                            {isCustomMode && (
+                              <button 
+                                className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeSignaturePosition(position.id);
+                                }}
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="relative w-full h-[600px]">
@@ -1037,64 +1055,76 @@ export default function DocumentSign() {
                   )}
                   
                   {/* PDF에도 서명 위치 표시 */}
-                  {currentSignaturePositions.map((position) => (
-                    <div
-                      key={position.id}
-                      className={`absolute border-2 ${
-                        signedPositions[position.id] ? 'border-green-500 bg-green-50/30' : 'border-red-500 animate-pulse'
-                      } rounded-md flex items-center justify-center z-10`}
-                      style={{
-                        left: `${position.displayX !== undefined ? position.displayX : position.x}px`,
-                        top: `${position.displayY !== undefined ? position.displayY : position.y}px`,
-                        width: `${position.displayWidth !== undefined ? position.displayWidth : 150}px`,
-                        height: `${position.displayHeight !== undefined ? position.displayHeight : 60}px`,
-                      }}
-                      onClick={(e) => {
-                        if (isCustomMode) {
-                          // 직접서명위치지정 모드에서는 클릭시 바로 삭제
-                          e.stopPropagation();
-                          removeSignaturePosition(position.id);
-                        } else if (!signedPositions[position.id]) {
-                          // 기본 모드에서는 서명되지 않은 위치만 클릭시 서명 추가
-                          e.stopPropagation();
-                          handleSignatureButtonClick(position.id);
-                        } else {
-                          // 기본 모드에서 서명된 위치 클릭시 이벤트 전파만 중지 (삭제 기능 제거)
-                          e.stopPropagation();
-                        }
-                      }}
-                      onMouseDown={(e) => handleDragStart(e, position.id)}
-                    >
-                      {signedPositions[position.id] ? (
-                        <img 
-                          src={signatureImage || ''} 
-                          alt="서명" 
-                          style={{ 
-                            width: `${(position.displayWidth !== undefined ? position.displayWidth : 150) - 10}px`,
-                            height: `${(position.displayHeight !== undefined ? position.displayHeight : 60) - 10}px`,
-                            objectFit: 'contain',
-                            background: 'transparent'
-                          }}
-                        />
-                      ) : (
-                        <div className="relative w-full h-full flex items-center justify-center">
-                          <span className="text-xs text-red-500 font-medium">서명 필요</span>
-                          {/* 직접서명위치지정 모드에서만 삭제 버튼 표시 */}
-                          {isCustomMode && (
-                            <button 
-                              className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeSignaturePosition(position.id);
-                              }}
-                            >
-                              ×
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                  {currentSignaturePositions.map((position) => {
+                    // 이미지 요소 가져오기
+                    const imageElement = document.querySelector('.relative.w-full.h-full img') as HTMLImageElement;
+                    // 화면 표시용 좌표로 변환 (이미지 요소가 있을 때만)
+                    const displayCoords = imageElement ? convertToDisplayCoords(position, imageElement) : {
+                      displayX: 0,
+                      displayY: 0,
+                      displayWidth: 150,
+                      displayHeight: 60
+                    };
+
+                    return (
+                      <div
+                        key={position.id}
+                        className={`absolute border-2 ${
+                          signedPositions[position.id] ? 'border-green-500 bg-green-50/30' : 'border-red-500 animate-pulse'
+                        } rounded-md flex items-center justify-center`}
+                        style={{
+                          left: `${displayCoords.displayX}px`,
+                          top: `${displayCoords.displayY}px`,
+                          width: `${displayCoords.displayWidth}px`,
+                          height: `${displayCoords.displayHeight}px`,
+                        }}
+                        onClick={(e) => {
+                          if (isCustomMode) {
+                            // 직접서명위치지정 모드에서는 클릭시 바로 삭제
+                            e.stopPropagation();
+                            removeSignaturePosition(position.id);
+                          } else if (!signedPositions[position.id]) {
+                            // 기본 모드에서는 서명되지 않은 위치만 클릭시 서명 추가
+                            e.stopPropagation();
+                            handleSignatureButtonClick(position.id);
+                          } else {
+                            // 기본 모드에서 서명된 위치 클릭시 이벤트 전파만 중지 (삭제 기능 제거)
+                            e.stopPropagation();
+                          }
+                        }}
+                        onMouseDown={(e) => handleDragStart(e, position.id)}
+                      >
+                        {signedPositions[position.id] ? (
+                          <img 
+                            src={signatureImage || ''} 
+                            alt="서명" 
+                            style={{ 
+                              width: `${displayCoords.displayWidth - 10}px`,
+                              height: `${displayCoords.displayHeight - 10}px`,
+                              objectFit: 'contain',
+                              background: 'transparent'
+                            }}
+                          />
+                        ) : (
+                          <div className="relative w-full h-full flex items-center justify-center">
+                            <span className="text-xs text-red-500 font-medium">서명 필요</span>
+                            {/* 직접서명위치지정 모드에서만 삭제 버튼 표시 */}
+                            {isCustomMode && (
+                              <button 
+                                className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeSignaturePosition(position.id);
+                                }}
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
