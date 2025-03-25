@@ -736,7 +736,7 @@ export default function DocumentSign() {
           console.log(`저장하는 서명 위치: ID=${pos.id}, x=${pos.x}, y=${pos.y}, 너비=${pos.width}, 높이=${pos.height}`);
         }
         
-        // display 관련 필드는 제외하고 필요한 필드만 포함
+        // 다운로드용 서명 위치 정보 - 원본 이미지 좌표로 저장
         return {
           id: pos.id,
           x: pos.x,

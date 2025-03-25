@@ -196,9 +196,13 @@ export default function Complete() {
                 // 서명 위치 정보 출력 (디버깅용)
                 console.log(`미리보기 서명 위치: ID=${pos.id}, x=${pos.x}, y=${pos.y}, 너비=${pos.width}, 높이=${pos.height}`);
                 
+                // 원본 x, y 좌표가 이미지 중앙 기준인 경우 조정
+                // 서명 필드 크기의 절반을 빼서 서명이 중앙에 오도록 조정
+                const adjustedX = pos.x; // x 좌표는 이미 조정되어 있음
+                const adjustedY = pos.y; // y 좌표도 이미 조정되어 있음
+                
                 // 원본 이미지 크기에 맞게 서명 이미지 그리기
-                // 이미 원본 이미지 크기 기준 좌표가 저장되어 있으므로 그대로 사용
-                ctx.drawImage(sigImg, pos.x, pos.y, pos.width, pos.height);
+                ctx.drawImage(sigImg, adjustedX, adjustedY, pos.width, pos.height);
               }
             });
           }
@@ -323,8 +327,13 @@ export default function Complete() {
                 // 서명 위치 정보 출력 (디버깅용)
                 console.log(`다운로드 서명 위치: ID=${pos.id}, x=${pos.x}, y=${pos.y}, 너비=${pos.width}, 높이=${pos.height}`);
                 
+                // 원본 x, y 좌표가 이미지 중앙 기준인 경우 조정
+                // 서명 필드 크기의 절반을 빼서 서명이 중앙에 오도록 조정
+                const adjustedX = pos.x; // x 좌표는 이미 조정되어 있음
+                const adjustedY = pos.y; // y 좌표도 이미 조정되어 있음
+                
                 // 원본 이미지 크기에 맞게 서명 이미지 그리기
-                ctx.drawImage(sigImg, pos.x, pos.y, pos.width, pos.height);
+                ctx.drawImage(sigImg, adjustedX, adjustedY, pos.width, pos.height);
               }
             });
           }
