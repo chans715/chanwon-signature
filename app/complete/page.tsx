@@ -181,8 +181,11 @@ export default function Complete() {
         sigImg.onload = () => {
           // 서명 위치에 서명 이미지 그리기
           if (doc.signaturePositions && doc.signaturePositions.length > 0) {
+            // 각 서명 위치에 서명 추가
             doc.signaturePositions.forEach((pos: any) => {
               if (pos.signed) {
+                // 정확한 위치에 서명 이미지 그리기
+                console.log(`서명 위치 정보: x=${pos.x}, y=${pos.y}, 너비=${pos.width}, 높이=${pos.height}`);
                 ctx.drawImage(sigImg, pos.x, pos.y, pos.width, pos.height);
               }
             });
@@ -235,7 +238,7 @@ export default function Complete() {
     downloadNextDocument(0);
   };
 
-  // 단일 문서 다운로드 함수 수정 (콜백 추가)
+  // 단일 문서 다운로드 함수 수정 - 서명 위치 정확도 개선
   const handleDownload = (docId: number, onComplete?: () => void) => {
     try {
       // 로컬 스토리지에서 서명된 문서 정보 가져오기
@@ -313,6 +316,10 @@ export default function Complete() {
               signatureImg.onload = () => {
                 // 각 서명 위치에 서명 이미지 추가
                 signedPositions.forEach((position: any) => {
+                  // 정확한 좌표 계산 - 위치 정보 출력 (디버깅용)
+                  console.log(`다운로드 서명 위치: x=${position.x}, y=${position.y}, 너비=${position.width}, 높이=${position.height}`);
+                  
+                  // 원본 이미지에 맞게 서명 그리기
                   ctx.drawImage(
                     signatureImg,
                     position.x,

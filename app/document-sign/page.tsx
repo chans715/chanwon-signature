@@ -69,6 +69,8 @@ export default function DocumentSign() {
     offsetX: 0,
     offsetY: 0
   });
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const [activeSignaturePosition, setActiveSignaturePosition] = useState<string | null>(null);
   
   // 페이지 로드 시 서명 상태 초기화
   useEffect(() => {
@@ -590,23 +592,37 @@ export default function DocumentSign() {
     }
 
     // 서명된 문서 정보 저장 (간소화)
-    const signedDocuments = documents.map(doc => {
+    const signedDocuments = documents.map((doc, index) => {
+      const actualSignaturePositions = isCustomMode ? customSignaturePositions[index] : doc.signaturePositions;
+      
+      // 서명 위치 정보 정확히 저장하기
+      const positions = actualSignaturePositions.map(pos => {
+        const isPositionSigned = signedPositions[pos.id] || false;
+        // 디버깅 정보 출력
+        if (isPositionSigned) {
+          console.log(`저장하는 서명 위치: ID=${pos.id}, x=${pos.x}, y=${pos.y}, 너비=${pos.width}, 높이=${pos.height}`);
+        }
+        
+        return {
+          ...pos,
+          signed: isPositionSigned,
+          signatureImage: isPositionSigned ? signature : null
+        };
+      });
+      
       return {
         id: doc.id,
         imageUrl: doc.imageUrl,
         pdfUrl: doc.pdfUrl,
         type: doc.type,
-        signaturePositions: doc.signaturePositions.map(pos => ({
-          ...pos,
-          signed: signedPositions[pos.id] || false,
-          signatureImage: pos.signed ? signature : null
-        })),
+        signaturePositions: positions,
         signatureImage: signature
       };
     });
     
     // 로컬 스토리지에 저장
     try {
+      console.log('서명된 문서 정보:', JSON.stringify(signedDocuments, null, 2));
       localStorage.setItem('signedDocumentsForDownload', JSON.stringify(signedDocuments));
       localStorage.setItem('userSignatureForDownload', signature);
       localStorage.setItem('hasSignature', 'true');
@@ -682,18 +698,28 @@ export default function DocumentSign() {
     addError('info', isCustomMode ? '기본 서명 모드로 전환합니다.' : '커스텀 서명 모드로 전환합니다. 문서를 클릭하여 서명 위치를 추가하세요.', true, 3000);
   };
   
-  // 서명 동작 변경: 서명 버튼 클릭 핸들러
+  // 서명 핸들러
   const handleSignatureButtonClick = (positionId: string) => {
-    console.log('서명 버튼 클릭:', positionId);
-    
-    // 이미 서명된 위치인 경우 무시
-    if (signedPositions[positionId]) {
-      console.log('이미 서명된 위치입니다.');
+    if (!signatureImage) {
+      addError('info', '서명을 먼저 입력해주세요.', true, 2000);
+      setIsSignatureModalOpen(true);
+      setActiveSignaturePosition(positionId);
       return;
     }
+
+    // 서명 상태 업데이트
+    setSignedPositions(prev => ({
+      ...prev,
+      [positionId]: true
+    }));
     
-    // 서명 추가 실행
-    addSignature(positionId);
+    // 로그 추가 - 클릭된 서명 위치 정보 출력
+    const position = currentSignaturePositions.find(pos => pos.id === positionId);
+    if (position) {
+      console.log(`클릭된 서명 위치: ID=${positionId}, x=${position.x}, y=${position.y}, 너비=${position.width}, 높이=${position.height}`);
+    }
+
+    addError('success', '서명이 추가되었습니다.', true, 1500);
   };
   
   if (isLoading) {
@@ -1005,4 +1031,5 @@ export default function DocumentSign() {
       </Container>
     </div>
   );
+} 
 } 
