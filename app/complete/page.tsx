@@ -56,65 +56,50 @@ export default function Complete() {
   };
 
   useEffect(() => {
-    // 세션 스토리지에서 서명된 문서 정보 가져오기
-    const savedDocuments = sessionStorage.getItem('signedDocuments');
-    if (savedDocuments) {
-      try {
-        const parsedDocuments = JSON.parse(savedDocuments);
-        if (Array.isArray(parsedDocuments) && parsedDocuments.length > 0) {
-          console.log('세션 스토리지에서 서명된 문서를 로드했습니다:', parsedDocuments);
-          setSignedDocuments(parsedDocuments);
-          
-          // 모든 문서 선택 상태로 초기화
-          const initialSelections: Record<number, boolean> = {};
-          parsedDocuments.forEach((doc: any) => {
-            initialSelections[doc.id] = true;
-          });
-          setSelectedDocuments(initialSelections);
-        } else {
-          console.warn('세션 스토리지에 유효한 문서 데이터가 없습니다.');
-          addError('warning', '서명된 문서 정보가 없습니다. 샘플 데이터를 표시합니다.', true, 5000);
-          
-          // 샘플 데이터 표시
-          const sampleData = [
-            {
-              id: 1,
-              imageUrl: '/images/document1.jpeg',
-              pdfUrl: null,
-              type: 'image',
-              signaturePositions: [
-                { id: '1', x: 100, y: 300, width: 150, height: 60, signed: true }
-              ]
-            }
-          ];
-          setSignedDocuments(sampleData);
-          
-          // 샘플 데이터 선택 상태 초기화
-          setSelectedDocuments({ 1: true });
-        }
-      } catch (error) {
-        console.error('서명 문서 데이터 파싱 오류:', error);
-        addError('error', '서명된 문서 정보를 불러오는데 실패했습니다.', true, 5000);
-      }
-    } else {
-      console.warn('세션 스토리지에 서명된 문서 정보가 없습니다.');
-      // 서명된 문서가 없는 경우 처리
+    // 세션 스토리지에서 서명 및 날짜 정보 가져오기
+    const dateStr = sessionStorage.getItem('documentsSignedDate');
+    if (dateStr) {
+      const date = new Date(dateStr);
+      setDateString(date.toLocaleDateString('ko-KR', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }));
     }
     
-    // 서명 ID 생성
-    const signatureId = `SIG-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-    setSignatureId(signatureId);
+    // 서명 ID 가져오기
+    const sigId = sessionStorage.getItem('signatureId');
+    if (sigId) {
+      setSignatureId(sigId);
+    }
     
-    // 현재 날짜 및 시간
-    const now = new Date();
-    setDateString(now.toLocaleDateString('ko-KR', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }));
-  }, [addError]);
+    // 서명된 문서 정보 가져오기
+    const storedDocuments = localStorage.getItem('signedDocumentsForDownload');
+    if (storedDocuments) {
+      try {
+        const parsedDocuments = JSON.parse(storedDocuments);
+        setSignedDocuments(parsedDocuments);
+        
+        // 모든 문서가 기본적으로 선택된 상태로 설정
+        const selectedState: Record<number, boolean> = {};
+        parsedDocuments.forEach((doc: any) => {
+          selectedState[doc.id] = true;
+        });
+        setSelectedDocuments(selectedState);
+        
+        // 서명된 문서 미리보기 렌더링
+        setTimeout(() => {
+          parsedDocuments.forEach((doc: any) => {
+            renderSignedDocumentPreview(doc);
+          });
+        }, 500);
+      } catch (error) {
+        console.error('서명된 문서 정보 파싱 오류:', error);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const sendCompletionNotification = async () => {
@@ -159,8 +144,99 @@ export default function Complete() {
   // 선택된 문서 수 계산
   const selectedCount = Object.values(selectedDocuments).filter(Boolean).length;
 
-  // 간소화된 문서 다운로드 처리 함수
-  const handleDownload = (docId: number) => {
+  // 서명된 문서 미리보기 렌더링
+  const renderSignedDocumentPreview = (doc: any) => {
+    try {
+      // 서명 이미지 가져오기
+      const signatureImage = localStorage.getItem('userSignatureForDownload');
+      if (!signatureImage) return;
+      
+      // 미리보기 이미지 요소 가져오기
+      const previewImg = document.getElementById(`preview-img-${doc.id}`) as HTMLImageElement;
+      if (!previewImg) return;
+      
+      // 캔버스 생성
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      
+      // 원본 이미지 로드
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      img.src = doc.imageUrl;
+      
+      img.onload = () => {
+        // 캔버스 크기 설정
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // 원본 이미지 그리기
+        ctx.drawImage(img, 0, 0, img.width, img.height);
+        
+        // 서명 이미지 로드
+        const sigImg = new window.Image();
+        sigImg.crossOrigin = 'anonymous';
+        sigImg.src = signatureImage;
+        
+        sigImg.onload = () => {
+          // 서명 위치에 서명 이미지 그리기
+          if (doc.signaturePositions && doc.signaturePositions.length > 0) {
+            doc.signaturePositions.forEach((pos: any) => {
+              if (pos.signed) {
+                ctx.drawImage(sigImg, pos.x, pos.y, pos.width, pos.height);
+              }
+            });
+          }
+          
+          // 캔버스 이미지를 미리보기에 적용
+          const dataUrl = canvas.toDataURL('image/jpeg');
+          previewImg.src = dataUrl;
+        };
+      };
+    } catch (error) {
+      console.error('미리보기 렌더링 오류:', error);
+    }
+  };
+
+  // 선택된 문서들을 묶어서 다운로드
+  const handleDownloadSelected = () => {
+    const selectedDocIds = Object.entries(selectedDocuments)
+      .filter(([_, selected]) => selected)
+      .map(([id]) => Number(id));
+    
+    if (selectedDocIds.length === 0) {
+      setError('다운로드할 문서를 선택해주세요.');
+      return;
+    }
+    
+    setIsGeneratingPdf(true);
+    
+    // 각 선택된 문서를 순차적으로 다운로드
+    const downloadNextDocument = (index: number) => {
+      if (index >= selectedDocIds.length) {
+        setIsGeneratingPdf(false);
+        setSuccess(`${selectedDocIds.length}개 문서 다운로드를 완료했습니다.`);
+        return;
+      }
+      
+      const docId = selectedDocIds[index];
+      
+      // 현재 문서 다운로드 완료 후 다음 문서 다운로드
+      const onComplete = () => {
+        setTimeout(() => {
+          downloadNextDocument(index + 1);
+        }, 500);
+      };
+      
+      handleDownload(docId, onComplete);
+    };
+    
+    // 첫 번째 문서부터 다운로드 시작
+    downloadNextDocument(0);
+  };
+
+  // 단일 문서 다운로드 함수 수정 (콜백 추가)
+  const handleDownload = (docId: number, onComplete?: () => void) => {
     try {
       // 로컬 스토리지에서 서명된 문서 정보 가져오기
       const storedDocuments = localStorage.getItem('signedDocumentsForDownload');
@@ -169,6 +245,7 @@ export default function Complete() {
       if (!storedDocuments) {
         console.error('저장된 문서 정보를 찾을 수 없습니다.');
         setError('저장된 문서 정보를 찾을 수 없습니다.');
+        if (onComplete) onComplete();
         return;
       }
       
@@ -180,6 +257,7 @@ export default function Complete() {
       if (!documentToDownload) {
         console.error(`ID ${docId}의 문서를 찾을 수 없습니다.`);
         setError(`다운로드할 문서를 찾을 수 없습니다 (ID: ${docId}).`);
+        if (onComplete) onComplete();
         return;
       }
       
@@ -189,6 +267,7 @@ export default function Complete() {
       if (!imageUrl) {
         console.error('문서 이미지 URL이 없습니다.');
         setError('문서 이미지를 찾을 수 없습니다.');
+        if (onComplete) onComplete();
         return;
       }
       
@@ -199,6 +278,7 @@ export default function Complete() {
       if (!ctx) {
         console.error('캔버스 컨텍스트를 생성할 수 없습니다.');
         setError('문서 이미지를 처리할 수 없습니다.');
+        if (onComplete) onComplete();
         return;
       }
       
@@ -223,20 +303,16 @@ export default function Complete() {
           );
           
           if (signedPositions.length > 0) {
-            // 각 서명 위치에 서명 이미지 그리기
-            let positionsProcessed = 0;
-            const totalPositions = signedPositions.length;
+            // 서명 이미지 소스 - 문서 전체 서명 이미지 또는 localStorage 서명 이미지
+            const signatureSource = documentToDownload.signatureImage || signature;
             
-            signedPositions.forEach((position: any) => {
-              // 서명 이미지 소스 (위치별 서명 이미지 또는 전체 서명 이미지)
-              const signatureSource = position.signatureImage || signature || documentToDownload.signatureImage;
+            if (signatureSource) {
+              const signatureImg = new window.Image();
+              signatureImg.crossOrigin = 'anonymous';
               
-              if (signatureSource) {
-                const signatureImg = new window.Image();
-                signatureImg.crossOrigin = 'anonymous';
-                
-                signatureImg.onload = () => {
-                  // 서명 위치에 서명 이미지 추가
+              signatureImg.onload = () => {
+                // 각 서명 위치에 서명 이미지 추가
+                signedPositions.forEach((position: any) => {
                   ctx.drawImage(
                     signatureImg,
                     position.x,
@@ -244,43 +320,31 @@ export default function Complete() {
                     position.width,
                     position.height
                   );
-                  
-                  positionsProcessed++;
-                  
-                  // 모든 서명 위치 처리 완료 후 다운로드
-                  if (positionsProcessed === totalPositions) {
-                    finalizeDownload(canvas, docId);
-                  }
-                };
+                });
                 
-                signatureImg.onerror = () => {
-                  console.error('서명 이미지 로드 실패');
-                  positionsProcessed++;
-                  
-                  // 서명 이미지 로드 실패해도 다운로드 진행
-                  if (positionsProcessed === totalPositions) {
-                    finalizeDownload(canvas, docId);
-                  }
-                };
-                
-                // 서명 이미지 로드
-                signatureImg.src = signatureSource;
-              } else {
-                positionsProcessed++;
-                
-                // 서명 이미지가 없어도 다운로드 진행
-                if (positionsProcessed === totalPositions) {
-                  finalizeDownload(canvas, docId);
-                }
-              }
-            });
+                // 모든 위치에 서명 추가 후 다운로드
+                finalizeDownload(canvas, docId, onComplete);
+              };
+              
+              signatureImg.onerror = () => {
+                console.error('서명 이미지 로드 실패');
+                // 서명 이미지 로드 실패해도 다운로드 진행
+                finalizeDownload(canvas, docId, onComplete);
+              };
+              
+              // 서명 이미지 로드
+              signatureImg.src = signatureSource;
+            } else {
+              console.warn('서명 이미지가 없습니다. 원본 문서만 다운로드합니다.');
+              finalizeDownload(canvas, docId, onComplete);
+            }
           } else {
-            // 서명된 위치가 없으면 바로 다운로드
-            finalizeDownload(canvas, docId);
+            console.log('서명된 위치가 없습니다. 원본 문서만 다운로드합니다.');
+            finalizeDownload(canvas, docId, onComplete);
           }
         } else {
-          // 서명 위치가 없으면 바로 다운로드
-          finalizeDownload(canvas, docId);
+          console.log('서명 위치 정보가 없습니다. 원본 문서만 다운로드합니다.');
+          finalizeDownload(canvas, docId, onComplete);
         }
       };
       
@@ -301,11 +365,12 @@ export default function Complete() {
     } catch (error) {
       console.error('문서 다운로드 중 오류:', error);
       setError('문서 다운로드 중 오류가 발생했습니다.');
+      if (onComplete) onComplete();
     }
   };
 
-  // 최종 다운로드 처리 함수
-  const finalizeDownload = (canvas: HTMLCanvasElement, downloadDocId: number) => {
+  // 최종 다운로드 처리 함수 (콜백 추가)
+  const finalizeDownload = (canvas: HTMLCanvasElement, downloadDocId: number, onComplete?: () => void) => {
     try {
       // 캔버스를 이미지로 변환
       const signedImageUrl = canvas.toDataURL('image/jpeg', 0.95);
@@ -322,9 +387,13 @@ export default function Complete() {
       
       // 다운로드 성공 메시지
       setSuccess(`문서 ${downloadDocId}가 성공적으로 다운로드되었습니다.`);
+      
+      // 콜백 함수 실행 (다음 문서 다운로드)
+      if (onComplete) onComplete();
     } catch (error) {
       console.error('최종 다운로드 처리 중 오류:', error);
       setError('문서 이미지 생성 중 오류가 발생했습니다.');
+      if (onComplete) onComplete();
     }
   };
 
@@ -415,7 +484,7 @@ export default function Complete() {
                 </div>
                 
                 <Button
-                  onClick={() => selectedCount > 0 && handleDownload(signedDocuments[0].id)}
+                  onClick={handleDownloadSelected}
                   variant="primary"
                   fullWidth
                   loading={isGeneratingPdf}
@@ -446,6 +515,7 @@ export default function Complete() {
                     >
                       <div className="relative h-40 bg-gray-100">
                         <img
+                          id={`preview-img-${doc.id}`}
                           src={doc.imageUrl}
                           alt={`문서 ${doc.id}`}
                           style={{ 
@@ -454,13 +524,10 @@ export default function Complete() {
                             objectFit: 'contain'
                           }}
                           onLoad={() => {
-                            console.log('미리보기 이미지 로드 성공:', doc.imageUrl);
+                            console.log('미리보기 이미지 로드 성공:', doc.id);
                           }}
                           onError={(e) => {
-                            console.error('미리보기 이미지 로드 실패:', doc.imageUrl);
-                            console.log('미리보기 이미지 경로 정보:');
-                            console.log('기본 경로:', doc.imageUrl);
-                            console.log('절대 경로 시도:', `${window.location.origin}${doc.imageUrl}`);
+                            console.error('미리보기 이미지 로드 실패:', doc.id);
                             
                             // 다른 경로 시도
                             e.currentTarget.src = doc.imageUrl;
