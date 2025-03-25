@@ -349,12 +349,55 @@ export default function DocumentSign() {
   
   // 문서에 클릭하여 서명 위치 추가
   const handleDocumentClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // 커스텀 모드가 아닐 때도 클릭으로 서명 필드 추가
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const width = 150;
-    const height = 60;
+    // 이미지 요소 찾기 및 크기 비율 계산
+    const imageElement = e.currentTarget.querySelector('img') as HTMLImageElement;
+    if (!imageElement) {
+      console.error('이미지 요소를 찾을 수 없습니다.');
+      return;
+    }
+    
+    // 이미지의 원본 크기와 표시 크기 가져오기
+    const displayWidth = imageElement.clientWidth;
+    const displayHeight = imageElement.clientHeight;
+    
+    // 원본 이미지 가져오기 (자연 크기)
+    const naturalWidth = imageElement.naturalWidth || displayWidth;
+    const naturalHeight = imageElement.naturalHeight || displayHeight;
+    
+    // 크기 비율 계산
+    const widthRatio = naturalWidth / displayWidth;
+    const heightRatio = naturalHeight / displayHeight;
+    
+    // 이미지 컨테이너와 이미지 자체의 위치 계산
+    const containerRect = e.currentTarget.getBoundingClientRect();
+    const imageRect = imageElement.getBoundingClientRect();
+    
+    // 클릭한 위치 계산 (컨테이너 기준)
+    const clickX = e.clientX - containerRect.left;
+    const clickY = e.clientY - containerRect.top;
+    
+    // 이미지 내부 클릭 위치 계산 (이미지 기준)
+    let imageClickX = clickX - (imageRect.left - containerRect.left);
+    let imageClickY = clickY - (imageRect.top - containerRect.top);
+    
+    // 이미지 외부 클릭 체크
+    if (imageClickX < 0 || imageClickX > displayWidth || imageClickY < 0 || imageClickY > displayHeight) {
+      console.warn('이미지 외부를 클릭했습니다. 위치를 조정합니다.');
+      imageClickX = Math.max(0, Math.min(imageClickX, displayWidth));
+      imageClickY = Math.max(0, Math.min(imageClickY, displayHeight));
+    }
+    
+    // 원본 이미지 기준 좌표로 변환
+    const x = Math.round(imageClickX * widthRatio);
+    const y = Math.round(imageClickY * heightRatio);
+    
+    // 서명 크기도 비율에 맞게 조정
+    const width = Math.round(150 * widthRatio); // 기본 너비를 비율에 맞게 조정
+    const height = Math.round(60 * heightRatio); // 기본 높이를 비율에 맞게 조정
+    
+    console.log(`클릭 좌표: 화면(${imageClickX}, ${imageClickY}) -> 원본(${x}, ${y})`);
+    console.log(`이미지 크기: 화면(${displayWidth}x${displayHeight}) 원본(${naturalWidth}x${naturalHeight})`);
+    console.log(`변환 비율: 가로(${widthRatio.toFixed(2)}) 세로(${heightRatio.toFixed(2)})`);
     
     // 새 서명 위치 ID 생성
     const newPositionId = `${isCustomMode ? 'custom' : 'default'}-${currentDocIndex}-${Date.now()}`;
@@ -369,7 +412,7 @@ export default function DocumentSign() {
         updatedPositions[currentDocIndex] = [];
       }
       
-      // 새 서명 위치 추가
+      // 새 서명 위치 추가 (원본 이미지 좌표 사용)
       updatedPositions[currentDocIndex].push({
         id: newPositionId,
         x,
@@ -385,7 +428,7 @@ export default function DocumentSign() {
       const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
       
       if (docIndex !== -1) {
-        // 새 서명 위치 추가
+        // 새 서명 위치 추가 (원본 이미지 좌표 사용)
         const newPosition = {
           id: newPositionId,
           x,
