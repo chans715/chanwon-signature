@@ -20,6 +20,21 @@ const PDFViewer = dynamic(() => import('@/components/PDFViewer'), {
   )
 });
 
+// 인터페이스 확장: 서명 위치에 화면 표시용 속성 추가
+interface SignaturePosition {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  signed?: boolean;
+  // 화면 표시용 속성 추가
+  displayX?: number;
+  displayY?: number;
+  displayWidth?: number;
+  displayHeight?: number;
+}
+
 // 사용할 샘플 문서 데이터
 const initialSampleDocuments = [
   {
@@ -28,8 +43,30 @@ const initialSampleDocuments = [
     pdfUrl: null,
     type: 'image',
     signaturePositions: [
-      { id: '1', x: 100, y: 300, width: 150, height: 60, signed: false },
-      { id: '2', x: 300, y: 400, width: 150, height: 60, signed: false },
+      { 
+        id: '1', 
+        x: 100, 
+        y: 300, 
+        width: 150, 
+        height: 60, 
+        signed: false,
+        displayX: 100,
+        displayY: 300,
+        displayWidth: 150,
+        displayHeight: 60 
+      },
+      { 
+        id: '2', 
+        x: 300, 
+        y: 400, 
+        width: 150, 
+        height: 60, 
+        signed: false,
+        displayX: 300,
+        displayY: 400,
+        displayWidth: 150,
+        displayHeight: 60 
+      },
     ]
   },
   {
@@ -38,7 +75,18 @@ const initialSampleDocuments = [
     pdfUrl: null,
     type: 'image',
     signaturePositions: [
-      { id: '1', x: 120, y: 280, width: 150, height: 60, signed: false },
+      { 
+        id: '1', 
+        x: 120, 
+        y: 280, 
+        width: 150, 
+        height: 60, 
+        signed: false,
+        displayX: 120,
+        displayY: 280,
+        displayWidth: 150,
+        displayHeight: 60 
+      },
     ]
   }
 ];
@@ -54,7 +102,7 @@ export default function DocumentSign() {
   const [signatureImage, setSignatureImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCustomMode, setIsCustomMode] = useState(false);
-  const [customSignaturePositions, setCustomSignaturePositions] = useState<Array<Array<{id: string; x: number; y: number; width: number; height: number; signed?: boolean;}>>>([]);
+  const [customSignaturePositions, setCustomSignaturePositions] = useState<Array<Array<SignaturePosition>>>([]);
   const [imageErrorShown, setImageErrorShown] = useState<Record<number, boolean>>({});
   const [documents, setDocuments] = useState(initialSampleDocuments);
   const [imagesLoaded, setImagesLoaded] = useState(false);
@@ -387,15 +435,17 @@ export default function DocumentSign() {
       imageClickY = Math.max(0, Math.min(imageClickY, displayHeight));
     }
     
-    // 원본 이미지 기준 좌표로 변환
-    const x = Math.round(imageClickX * widthRatio);
-    const y = Math.round(imageClickY * heightRatio);
+    // 원본 좌표와 화면 표시용 좌표 모두 계산
+    const originalX = Math.round(imageClickX * widthRatio); // 원본 이미지 기준 X 좌표
+    const originalY = Math.round(imageClickY * heightRatio); // 원본 이미지 기준 Y 좌표
     
-    // 서명 크기도 비율에 맞게 조정
-    const width = Math.round(150 * widthRatio); // 기본 너비를 비율에 맞게 조정
-    const height = Math.round(60 * heightRatio); // 기본 높이를 비율에 맞게 조정
+    // 서명 필드 크기 (원본과 화면 표시용 모두 계산)
+    const originalWidth = Math.round(150 * widthRatio); // 원본 이미지 기준 너비
+    const originalHeight = Math.round(60 * heightRatio); // 원본 이미지 기준 높이
+    const displayFieldWidth = 150; // 화면 표시용 너비
+    const displayFieldHeight = 60; // 화면 표시용 높이
     
-    console.log(`클릭 좌표: 화면(${imageClickX}, ${imageClickY}) -> 원본(${x}, ${y})`);
+    console.log(`클릭 좌표: 화면(${imageClickX}, ${imageClickY}) -> 원본(${originalX}, ${originalY})`);
     console.log(`이미지 크기: 화면(${displayWidth}x${displayHeight}) 원본(${naturalWidth}x${naturalHeight})`);
     console.log(`변환 비율: 가로(${widthRatio.toFixed(2)}) 세로(${heightRatio.toFixed(2)})`);
     
@@ -412,13 +462,17 @@ export default function DocumentSign() {
         updatedPositions[currentDocIndex] = [];
       }
       
-      // 새 서명 위치 추가 (원본 이미지 좌표 사용)
+      // 새 서명 위치 추가 (원본 및 표시용 정보 포함)
       updatedPositions[currentDocIndex].push({
         id: newPositionId,
-        x,
-        y,
-        width,
-        height
+        x: originalX, // 원본 이미지 기준 X
+        y: originalY, // 원본 이미지 기준 Y
+        width: originalWidth, // 원본 이미지 기준 너비
+        height: originalHeight, // 원본 이미지 기준 높이
+        displayX: imageClickX, // 화면 표시용 X
+        displayY: imageClickY, // 화면 표시용 Y
+        displayWidth: displayFieldWidth, // 화면 표시용 너비
+        displayHeight: displayFieldHeight, // 화면 표시용 높이
       });
       
       setCustomSignaturePositions(updatedPositions);
@@ -428,13 +482,17 @@ export default function DocumentSign() {
       const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
       
       if (docIndex !== -1) {
-        // 새 서명 위치 추가 (원본 이미지 좌표 사용)
+        // 새 서명 위치 추가 (원본 및 표시용 정보 포함)
         const newPosition = {
           id: newPositionId,
-          x,
-          y,
-          width,
-          height,
+          x: originalX, // 원본 이미지 기준 X
+          y: originalY, // 원본 이미지 기준 Y
+          width: originalWidth, // 원본 이미지 기준 너비
+          height: originalHeight, // 원본 이미지 기준 높이
+          displayX: imageClickX, // 화면 표시용 X
+          displayY: imageClickY, // 화면 표시용 Y
+          displayWidth: displayFieldWidth, // 화면 표시용 너비
+          displayHeight: displayFieldHeight, // 화면 표시용 높이
           signed: false
         };
         
@@ -656,8 +714,13 @@ export default function DocumentSign() {
           console.log(`저장하는 서명 위치: ID=${pos.id}, x=${pos.x}, y=${pos.y}, 너비=${pos.width}, 높이=${pos.height}`);
         }
         
+        // display 관련 필드는 제외하고 필요한 필드만 포함
         return {
-          ...pos,
+          id: pos.id,
+          x: pos.x,
+          y: pos.y,
+          width: pos.width,
+          height: pos.height,
           signed: isPositionSigned,
           signatureImage: isPositionSigned ? signature : null
         };
@@ -893,10 +956,10 @@ export default function DocumentSign() {
                         signedPositions[position.id] ? 'border-green-500 bg-green-50/30' : 'border-red-500 animate-pulse'
                       } rounded-md flex items-center justify-center`}
                       style={{
-                        left: `${position.x}px`,
-                        top: `${position.y}px`,
-                        width: `${position.width}px`,
-                        height: `${position.height}px`,
+                        left: `${position.displayX !== undefined ? position.displayX : position.x}px`,
+                        top: `${position.displayY !== undefined ? position.displayY : position.y}px`,
+                        width: `${position.displayWidth !== undefined ? position.displayWidth : 150}px`,
+                        height: `${position.displayHeight !== undefined ? position.displayHeight : 60}px`,
                       }}
                       onClick={(e) => {
                         if (isCustomMode) {
@@ -919,8 +982,8 @@ export default function DocumentSign() {
                           src={signatureImage || ''} 
                           alt="서명" 
                           style={{ 
-                            width: `${position.width - 10}px`,
-                            height: `${position.height - 10}px`,
+                            width: `${(position.displayWidth !== undefined ? position.displayWidth : 150) - 10}px`,
+                            height: `${(position.displayHeight !== undefined ? position.displayHeight : 60) - 10}px`,
                             objectFit: 'contain',
                             background: 'transparent'
                           }}
@@ -959,10 +1022,10 @@ export default function DocumentSign() {
                         signedPositions[position.id] ? 'border-green-500 bg-green-50/30' : 'border-red-500 animate-pulse'
                       } rounded-md flex items-center justify-center z-10`}
                       style={{
-                        left: `${position.x}px`,
-                        top: `${position.y}px`,
-                        width: `${position.width}px`,
-                        height: `${position.height}px`,
+                        left: `${position.displayX !== undefined ? position.displayX : position.x}px`,
+                        top: `${position.displayY !== undefined ? position.displayY : position.y}px`,
+                        width: `${position.displayWidth !== undefined ? position.displayWidth : 150}px`,
+                        height: `${position.displayHeight !== undefined ? position.displayHeight : 60}px`,
                       }}
                       onClick={(e) => {
                         if (isCustomMode) {
@@ -985,8 +1048,8 @@ export default function DocumentSign() {
                           src={signatureImage || ''} 
                           alt="서명" 
                           style={{ 
-                            width: `${position.width - 10}px`,
-                            height: `${position.height - 10}px`,
+                            width: `${(position.displayWidth !== undefined ? position.displayWidth : 150) - 10}px`,
+                            height: `${(position.displayHeight !== undefined ? position.displayHeight : 60) - 10}px`,
                             objectFit: 'contain',
                             background: 'transparent'
                           }}
