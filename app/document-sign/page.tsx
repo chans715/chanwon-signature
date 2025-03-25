@@ -43,6 +43,9 @@ const initialSampleDocuments = [
   }
 ];
 
+// MongoDB API URL
+// const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+
 export default function DocumentSign() {
   const router = useRouter();
   const { addError } = useError();
@@ -575,7 +578,7 @@ export default function DocumentSign() {
     }
   };
   
-  // 로컬 스토리지에 서명된 문서를 저장하는 함수 추가
+  // 서명된 문서 다운로드를 위한 처리 간소화
   const saveSignedDocumentForDownload = () => {
     // 서명 이미지 가져오기
     const signature = signatureImage || sessionStorage.getItem('userSignature');
@@ -586,52 +589,40 @@ export default function DocumentSign() {
       return;
     }
 
-    // 서명된 문서 정보 저장 (문서, 서명 위치, 서명 이미지 포함)
-    const signedDocuments = documents.map((doc, idx) => {
-      // 서명 위치 배열 가져오기
-      const positions = doc.signaturePositions.map(pos => {
-        return {
-          ...pos,
-          // 서명 이미지 URL 포함 - 서명된 위치에만 이미지 추가
-          signatureImage: pos.signed ? signature : null
-        };
-      });
-
+    // 서명된 문서 정보 저장 (간소화)
+    const signedDocuments = documents.map(doc => {
       return {
         id: doc.id,
         imageUrl: doc.imageUrl,
         pdfUrl: doc.pdfUrl,
         type: doc.type,
-        signaturePositions: positions,
-        // 서명 이미지도 함께 저장
+        signaturePositions: doc.signaturePositions.map(pos => ({
+          ...pos,
+          signed: signedPositions[pos.id] || false,
+          signatureImage: pos.signed ? signature : null
+        })),
         signatureImage: signature
       };
     });
     
-    // 로컬 스토리지에 저장 (다운로드용)
+    // 로컬 스토리지에 저장
     try {
       localStorage.setItem('signedDocumentsForDownload', JSON.stringify(signedDocuments));
-      localStorage.setItem('userSignatureForDownload', signature); // 서명 이미지 별도 저장
-      
-      // 다운로드를 위한 추가 정보 저장
-      localStorage.setItem('signedDocumentsCount', String(documents.length));
-      localStorage.setItem('signedDate', new Date().toISOString());
+      localStorage.setItem('userSignatureForDownload', signature);
       localStorage.setItem('hasSignature', 'true');
-      
-      console.log('다운로드를 위해 서명된 문서 저장 완료 (서명 이미지 포함)');
     } catch (err) {
       console.error('로컬 스토리지 저장 오류:', err);
     }
   };
   
-  // 기존 goToNextDocument 함수를 수정
+  // goToNextDocument 함수 간소화
   const goToNextDocument = () => {
     if (!isCurrentDocumentFullySigned()) {
       addError('warning', '모든 서명 위치에 서명을 추가해주세요.', true, 3000);
       return;
     }
     
-    // 다운로드를 위해 현재 서명 상태 저장
+    // 로컬 스토리지에 저장
     saveSignedDocumentForDownload();
     
     if (currentDocIndex < totalDocuments - 1) {
@@ -641,33 +632,25 @@ export default function DocumentSign() {
       // 모든 문서에 서명 완료
       addError('success', '모든 문서에 서명이 완료되었습니다.', true, 3000);
       
-      // 서명 완료 정보 저장
+      // 서명 완료 정보 저장 (간소화)
       sessionStorage.setItem('documentsSignedCount', totalDocuments.toString());
       sessionStorage.setItem('documentsSignedDate', new Date().toISOString());
       
-      // 서명된 문서 정보 저장 (커스텀 위치 포함)
-      const signedDocuments = documents.map((doc, idx) => {
-        // 서명된 문서에 서명 이미지 포함
-        const positions = isCustomMode ? customSignaturePositions[idx] : doc.signaturePositions;
-        const signature = signatureImage || sessionStorage.getItem('userSignature');
-        
+      // 서명된 문서 정보 저장 (간소화)
+      const signedDocuments = documents.map(doc => {
         return {
           id: doc.id,
           imageUrl: doc.imageUrl,
           pdfUrl: doc.pdfUrl,
           type: doc.type,
-          signaturePositions: positions.map(pos => ({
+          signaturePositions: doc.signaturePositions.map(pos => ({
             ...pos,
-            signed: signedPositions[pos.id] || false,
-            // 서명된 필드에 서명 이미지 URL 추가
-            signatureImage: signedPositions[pos.id] ? signature : null
-          })),
-          // 문서 전체에도 서명 이미지 포함
-          signatureImage: signature
+            signed: signedPositions[pos.id] || false
+          }))
         };
       });
       
-      // 세션 및 로컬 스토리지에 완전한 정보 저장
+      // 세션 및 로컬 스토리지에 저장
       sessionStorage.setItem('signedDocuments', JSON.stringify(signedDocuments));
       localStorage.setItem('signedDocumentsForDownload', JSON.stringify(signedDocuments));
       localStorage.setItem('userSignatureForDownload', signatureImage || sessionStorage.getItem('userSignature') || '');

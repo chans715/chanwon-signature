@@ -159,7 +159,7 @@ export default function Complete() {
   // 선택된 문서 수 계산
   const selectedCount = Object.values(selectedDocuments).filter(Boolean).length;
 
-  // 문서 다운로드 처리 함수 개선
+  // 간소화된 문서 다운로드 처리 함수
   const handleDownload = (docId: number) => {
     try {
       // 로컬 스토리지에서 서명된 문서 정보 가져오기
@@ -170,10 +170,6 @@ export default function Complete() {
         console.error('저장된 문서 정보를 찾을 수 없습니다.');
         setError('저장된 문서 정보를 찾을 수 없습니다.');
         return;
-      }
-      
-      if (!signature) {
-        console.warn('저장된 서명 이미지를 찾을 수 없습니다.');
       }
       
       const parsedDocuments = JSON.parse(storedDocuments);
