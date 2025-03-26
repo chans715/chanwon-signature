@@ -404,7 +404,7 @@ export default function DocumentSign() {
     return false;
   };
   
-  // handleDocumentClick 함수 완전 개선
+  // handleDocumentClick 함수 개선
   const handleDocumentClick = (event: React.MouseEvent<HTMLDivElement>) => {
     // 이미 서명이 완료된 경우 클릭 이벤트 무시
     if (isCurrentDocumentFullySigned()) {
@@ -420,62 +420,50 @@ export default function DocumentSign() {
       return;
     }
     
-    // 이미지의 실제 크기 (원본 이미지 크기)
-    const naturalWidth = imageElement.naturalWidth;
-    const naturalHeight = imageElement.naturalHeight;
+    // 이미지의 정확한 위치와 크기 정보 가져오기
+    const rect = imageElement.getBoundingClientRect();
     
-    // 이미지의 화면 표시 크기
-    const displayWidth = imageElement.clientWidth;
-    const displayHeight = imageElement.clientHeight;
+    // 이미지 내부에서의 클릭 위치 계산 (이미지 좌상단 기준)
+    const offsetX = event.clientX - rect.left;
+    const offsetY = event.clientY - rect.top;
     
-    // 크기 비율 계산 (원본 이미지 크기 / 화면 표시 크기)
-    const scaleX = naturalWidth / displayWidth;
-    const scaleY = naturalHeight / displayHeight;
-    
-    // 이미지 내에서의 클릭 위치 (화면 좌표)
-    const imageRect = imageElement.getBoundingClientRect();
-    const displayX = event.clientX - imageRect.left;
-    const displayY = event.clientY - imageRect.top;
-    
-    // 이미지 영역을 벗어난 클릭인지 확인
-    if (displayX < 0 || displayX > displayWidth || 
-        displayY < 0 || displayY > displayHeight) {
-      console.log('이미지 영역 밖을 클릭했습니다.');
-      return;
-    }
+    // 이미지의 화면 표시 크기와 원본 크기 비율 계산
+    const scaleX = imageElement.naturalWidth / imageElement.clientWidth;
+    const scaleY = imageElement.naturalHeight / imageElement.clientHeight;
     
     // 서명 필드 크기 (화면 표시 기준)
     const signatureWidth = 150; // 화면에 표시될 서명 너비
     const signatureHeight = 80; // 화면에 표시될 서명 높이
     
-    // 서명 필드가 중앙에 오도록 클릭 위치 보정 (화면 표시 기준)
-    const centeredDisplayX = displayX - (signatureWidth / 2);
-    const centeredDisplayY = displayY - (signatureHeight / 2);
+    // 클릭한 지점을 중앙으로 하는 서명 필드 화면 좌표 계산
+    const centeredDisplayX = offsetX - (signatureWidth / 2);
+    const centeredDisplayY = offsetY - (signatureHeight / 2);
+    
+    // 화면 표시 좌표가 이미지 경계를 벗어나지 않도록 조정
+    const imageWidth = imageElement.clientWidth;
+    const imageHeight = imageElement.clientHeight;
+    const adjustedDisplayX = Math.max(0, Math.min(centeredDisplayX, imageWidth - signatureWidth));
+    const adjustedDisplayY = Math.max(0, Math.min(centeredDisplayY, imageHeight - signatureHeight));
     
     // 원본 이미지 기준 좌표 계산 (서명 저장 및 렌더링에 사용)
-    // 원본 이미지에서 서명이 중앙에 오도록 계산
-    const originalX = Math.round(centeredDisplayX * scaleX);
-    const originalY = Math.round(centeredDisplayY * scaleY);
+    const originalX = Math.round(adjustedDisplayX * scaleX);
+    const originalY = Math.round(adjustedDisplayY * scaleY);
     const originalWidth = Math.round(signatureWidth * scaleX);
     const originalHeight = Math.round(signatureHeight * scaleY);
     
-    // 화면 표시 좌표가 이미지 경계를 벗어나지 않도록 조정
-    const adjustedDisplayX = Math.max(0, Math.min(centeredDisplayX, displayWidth - signatureWidth));
-    const adjustedDisplayY = Math.max(0, Math.min(centeredDisplayY, displayHeight - signatureHeight));
-    
     // 디버깅 정보 출력
     console.log('클릭 이벤트 정보:');
-    console.log(`- 이미지 실제 크기: ${naturalWidth} x ${naturalHeight}`);
-    console.log(`- 이미지 화면 크기: ${displayWidth} x ${displayHeight}`);
-    console.log(`- 비율: scaleX=${scaleX}, scaleY=${scaleY}`);
-    console.log(`- 원본 클릭 위치: ${displayX}, ${displayY}`);
-    console.log(`- 중앙 보정 위치: ${centeredDisplayX}, ${centeredDisplayY}`);
-    console.log(`- 조정된 화면 위치: ${adjustedDisplayX}, ${adjustedDisplayY}`);
+    console.log(`- 이미지 실제 크기: ${imageElement.naturalWidth} x ${imageElement.naturalHeight}`);
+    console.log(`- 이미지 화면 크기: ${imageWidth} x ${imageHeight}`);
+    console.log(`- 비율: scaleX=${scaleX.toFixed(2)}, scaleY=${scaleY.toFixed(2)}`);
+    console.log(`- 이미지 내 클릭 위치: ${offsetX.toFixed(2)}, ${offsetY.toFixed(2)}`);
+    console.log(`- 중앙 보정 위치: ${centeredDisplayX.toFixed(2)}, ${centeredDisplayY.toFixed(2)}`);
+    console.log(`- 조정된 화면 위치: ${adjustedDisplayX.toFixed(2)}, ${adjustedDisplayY.toFixed(2)}`);
     console.log(`- 원본 이미지 기준 위치: ${originalX}, ${originalY}, ${originalWidth} x ${originalHeight}`);
     
     // 새로운 서명 위치 객체 생성
     const newPosition = {
-      id: `${Date.now()}`, // 고유 ID 생성 (string 타입으로 변환)
+      id: `${Date.now()}`, // 고유 ID 생성
       x: originalX, // 원본 이미지 기준 X 좌표
       y: originalY, // 원본 이미지 기준 Y 좌표
       width: originalWidth, // 원본 이미지 기준 너비

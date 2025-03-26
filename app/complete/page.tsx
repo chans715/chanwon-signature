@@ -218,15 +218,15 @@ export default function Complete() {
             console.log(`서명된 위치 수: ${signedPositions.length}`);
             
             signedPositions.forEach((pos: any) => {
-              // 원본 이미지 기준 좌표 사용
-              const x = pos.x;
-              const y = pos.y;
-              const width = pos.width;
-              const height = pos.height;
-              
-              console.log(`서명 위치 (${pos.id}) 그리기:`, x, y, width, height);
-              
               try {
+                // 원본 이미지 기준 좌표 사용
+                const x = pos.x;
+                const y = pos.y;
+                const width = pos.width;
+                const height = pos.height;
+                
+                console.log(`서명 위치 (${pos.id}) 그리기:`, x, y, width, height);
+                
                 // 원본 이미지 위에 서명 이미지 그리기
                 ctx.drawImage(sigImg, x, y, width, height);
                 console.log(`서명 이미지 합성 완료 (위치 ${pos.id})`);
@@ -330,15 +330,15 @@ export default function Complete() {
             console.log(`다운로드할 문서의 서명된 위치 수: ${signedPositions.length}`);
             
             signedPositions.forEach((pos: any) => {
-              // 원본 이미지 기준 좌표 사용
-              const x = pos.x;
-              const y = pos.y;
-              const width = pos.width;
-              const height = pos.height;
-              
-              console.log(`다운로드 문서 서명 위치 (${pos.id}) 그리기:`, x, y, width, height);
-              
               try {
+                // 원본 이미지 기준 좌표 사용
+                const x = pos.x;
+                const y = pos.y;
+                const width = pos.width;
+                const height = pos.height;
+                
+                console.log(`다운로드 문서 서명 위치 (${pos.id}) 그리기:`, x, y, width, height);
+                
                 // 원본 이미지 위에 서명 이미지 그리기
                 ctx.drawImage(sigImg, x, y, width, height);
                 console.log(`다운로드 문서에 서명 이미지 합성 완료 (위치 ${pos.id})`);
