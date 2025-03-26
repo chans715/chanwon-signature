@@ -418,6 +418,16 @@ export default function DocumentSign() {
     const containerRect = imageContainer.getBoundingClientRect();
     const imageRect = imageElement.getBoundingClientRect();
     
+    // 이미지의 원본 크기와 화면에 표시되는 크기 가져오기
+    const displayWidth = imageRect.width;   // 화면에 표시된 이미지 너비
+    const displayHeight = imageRect.height; // 화면에 표시된 이미지 높이
+    const naturalWidth = imageElement.naturalWidth;   // 원본 이미지 너비
+    const naturalHeight = imageElement.naturalHeight; // 원본 이미지 높이
+    
+    // 이미지 표시 크기와 원본 크기 간의 비율 계산 (scale 팩터)
+    const scaleX = naturalWidth / displayWidth;
+    const scaleY = naturalHeight / displayHeight;
+    
     // 클릭 위치 (브라우저 윈도우 기준 절대 좌표)
     const clickX = e.clientX;
     const clickY = e.clientY;
@@ -427,31 +437,22 @@ export default function DocumentSign() {
     const imageClickY = clickY - imageRect.top;
     
     // 이미지 영역을 벗어난 클릭인지 확인
-    if (imageClickX < 0 || imageClickX > imageRect.width || 
-        imageClickY < 0 || imageClickY > imageRect.height) {
+    if (imageClickX < 0 || imageClickX > displayWidth || 
+        imageClickY < 0 || imageClickY > displayHeight) {
       console.log('이미지 영역 밖을 클릭했습니다.');
       return;
     }
-    
-    // 이미지의 실제 원본 크기 확인
-    const displayWidth = imageRect.width;   // 화면에 표시된 이미지 너비
-    const displayHeight = imageRect.height; // 화면에 표시된 이미지 높이
-    const naturalWidth = imageElement.naturalWidth;   // 원본 이미지 너비
-    const naturalHeight = imageElement.naturalHeight; // 원본 이미지 높이
-    
-    // 화면 표시 크기와 원본 크기 간의 비율 계산
-    const scaleX = naturalWidth / displayWidth;
-    const scaleY = naturalHeight / displayHeight;
     
     // 서명 필드 크기 (화면에 표시될 크기)
     const displayFieldWidth = 150;
     const displayFieldHeight = 60;
     
     // 서명 필드가 클릭 위치를 중심으로 배치되도록 좌상단 좌표 계산
+    // 화면 경계를 벗어나지 않도록 제한
     const displayX = Math.max(0, Math.min(displayWidth - displayFieldWidth, imageClickX - (displayFieldWidth / 2)));
     const displayY = Math.max(0, Math.min(displayHeight - displayFieldHeight, imageClickY - (displayFieldHeight / 2)));
     
-    // 원본 이미지 기준 좌표로 변환 (서명 이미지를 합성할 때 사용)
+    // 원본 이미지 기준 좌표 및 크기 계산 - 정확한 위치 매핑을 위해 스케일 적용
     const originalX = Math.round(displayX * scaleX);
     const originalY = Math.round(displayY * scaleY);
     const originalWidth = Math.round(displayFieldWidth * scaleX);
@@ -459,11 +460,11 @@ export default function DocumentSign() {
     
     // 디버깅 정보 출력
     console.log('==== 서명 필드 생성 정보 ====');
-    console.log(`클릭 좌표 (절대): X=${clickX}, Y=${clickY}`);
+    console.log(`클릭 좌표 (브라우저): X=${clickX}, Y=${clickY}`);
     console.log(`이미지 내 클릭 좌표: X=${imageClickX}, Y=${imageClickY}`);
     console.log(`이미지 표시 크기: ${displayWidth}x${displayHeight}`);
     console.log(`이미지 원본 크기: ${naturalWidth}x${naturalHeight}`);
-    console.log(`비율: 가로=${scaleX.toFixed(2)}, 세로=${scaleY.toFixed(2)}`);
+    console.log(`비율: scaleX=${scaleX.toFixed(3)}, scaleY=${scaleY.toFixed(3)}`);
     console.log(`서명 필드 위치 (화면): X=${displayX}, Y=${displayY}, 크기=${displayFieldWidth}x${displayFieldHeight}`);
     console.log(`서명 필드 위치 (원본): X=${originalX}, Y=${originalY}, 크기=${originalWidth}x${originalHeight}`);
     console.log('============================');
@@ -482,7 +483,7 @@ export default function DocumentSign() {
       displayY: displayY,          // 화면 표시용 Y 좌표
       displayWidth: displayFieldWidth,   // 화면 표시용 너비
       displayHeight: displayFieldHeight, // 화면 표시용 높이
-      signed: false
+      signed: false                // 서명 상태
     };
     
     // 현재 문서에 새 서명 위치 추가
@@ -496,6 +497,7 @@ export default function DocumentSign() {
       // 세션 스토리지 업데이트
       try {
         sessionStorage.setItem('signedDocuments', JSON.stringify(newDocuments));
+        console.log('서명 필드 위치 저장 완료');
       } catch (err) {
         console.error('세션 스토리지 업데이트 오류:', err);
       }
@@ -657,41 +659,45 @@ export default function DocumentSign() {
     }
 
     // 디버깅 정보 출력
-    console.log('==== 서명된 문서 저장 ====');
+    console.log('==== 서명된 문서 저장 시작 ====');
     console.log('서명된 문서 수:', documents.length);
     
     // 서명된 문서 정보 저장
     const signedDocuments = documents.map((doc, index) => {
-      // 서명 위치 정보 추출
+      console.log(`문서 ${doc.id} 처리 중...`);
+      
+      // 서명 위치 정보 추출 및 처리
       const signedPositionsList = doc.signaturePositions.map(pos => {
         // 서명 여부 확인
         const isSigned = signedPositions[pos.id] || false;
         
-        // 서명 위치 정보를 그대로 유지 (좌표 변환 없이)
-        // 이 정보는 app/complete/page.tsx에서 서명 합성에 사용됨
+        // 서명 위치 정보 (완전한 형태로 저장)
         const positionData = {
-          ...pos,
-          signed: isSigned
+          ...pos,                 // 기존 모든 위치 정보 유지
+          signed: isSigned        // 서명 상태 업데이트
         };
         
-        // 서명된 위치에 대한 로그 출력
+        // 서명된 위치의 경우 로그 출력
         if (isSigned) {
           console.log(`서명 위치 정보 (문서 ${doc.id}, 위치 ${pos.id}):`);
           console.log(`- 원본 좌표: x=${pos.x}, y=${pos.y}, 너비=${pos.width}, 높이=${pos.height}`);
-          console.log(`- 화면 좌표: displayX=${pos.displayX}, displayY=${pos.displayY}`);
+          console.log(`- 화면 좌표: displayX=${pos.displayX}, displayY=${pos.displayY}, displayWidth=${pos.displayWidth}, displayHeight=${pos.displayHeight}`);
         }
         
         return positionData;
       });
       
-      // 문서 정보 반환
+      // 문서 정보 반환 (필요한 모든 정보 포함)
       return {
         id: doc.id,
         imageUrl: doc.imageUrl,
         pdfUrl: doc.pdfUrl,
         type: doc.type,
         signaturePositions: signedPositionsList,
-        signatureImage: signature
+        signatureImage: signature,
+        // 추가 정보 - 캔버스에서 이미지 렌더링 시 필요할 수 있음
+        naturalWidth: null,  // 다운로드 시 이미지 로드 후 설정됨
+        naturalHeight: null  // 다운로드 시 이미지 로드 후 설정됨
       };
     });
     
