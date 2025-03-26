@@ -308,54 +308,43 @@ export default function DocumentSign() {
       // 문서 상태 업데이트 준비
       const newDocuments = [...documents];
       
+      // 문서 인덱스와 ID 확인용 디버깅
+      console.log(`서명 추가 중 - 현재 문서 인덱스: ${currentDocIndex}`);
+      console.log(`서명 추가 중 - 문서 목록:`, newDocuments.map(d => `ID: ${d.id}`));
+      
       // 문서 ID가 아닌 인덱스로 문서 찾기
-      let docIndex = -1;
+      let docIndex = currentDocIndex;
       
-      // 현재 보고 있는 문서 인덱스로 찾기
-      if (currentDocIndex >= 0 && currentDocIndex < newDocuments.length) {
-        docIndex = currentDocIndex;
-      } else {
-        // ID로 찾기 (이전 로직)
-        docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
+      // 인덱스 범위 체크
+      if (docIndex < 0 || docIndex >= newDocuments.length) {
+        console.error(`유효하지 않은 문서 인덱스: ${docIndex}`);
+        addError('error', '서명 위치를 찾을 수 없습니다.', true, 3000);
+        return;
       }
       
-      if (docIndex === -1) {
-        // 문서가 없으면 새로 추가
-        console.log('새 문서 추가:', currentDocIndex + 1);
-        const newDoc = {
-          id: currentDocIndex + 1,
-          imageUrl: currentDocument.imageUrl,
-          pdfUrl: currentDocument.pdfUrl,
-          type: currentDocument.type,
-          signaturePositions: currentSignaturePositions.map(pos => ({
-            ...pos,
-            signed: pos.id === positionId
-          }))
-        };
-        newDocuments.push(newDoc);
-        console.log('추가된 문서:', newDoc);
-      } else {
-        // 기존 문서 업데이트 - 현재 문서의 서명 위치만 업데이트
-        console.log('기존 문서 업데이트:', docIndex, currentDocIndex + 1);
-        
-        // 현재 문서의 서명 위치 가져오기
-        const currentPositions = [...newDocuments[docIndex].signaturePositions];
-        
-        // 서명 위치 업데이트
-        const updatedPositions = currentPositions.map(pos => ({
-          ...pos,
-          // 현재 클릭한 위치만 signed 상태 변경
-          signed: pos.id === positionId ? true : pos.signed
-        }));
-        
-        // 문서 업데이트
-        newDocuments[docIndex] = {
-          ...newDocuments[docIndex],
-          signaturePositions: updatedPositions
-        };
-        
-        console.log('업데이트된 문서 서명 위치:', updatedPositions);
+      // 현재 문서의 서명 위치 가져오기
+      const currentPositions = [...newDocuments[docIndex].signaturePositions];
+      
+      // 해당 ID의 서명 위치 찾기
+      const posIndex = currentPositions.findIndex(pos => pos.id === positionId);
+      
+      if (posIndex === -1) {
+        console.error(`서명 위치 ID를 찾을 수 없습니다: ${positionId}`);
+        addError('error', '서명 위치를 찾을 수 없습니다.', true, 3000);
+        return;
       }
+      
+      // 서명 위치 업데이트
+      currentPositions[posIndex] = {
+        ...currentPositions[posIndex],
+        signed: true
+      };
+      
+      // 문서 업데이트
+      newDocuments[docIndex] = {
+        ...newDocuments[docIndex],
+        signaturePositions: currentPositions
+      };
       
       // 문서 상태 업데이트
       setDocuments(newDocuments);
@@ -405,7 +394,7 @@ export default function DocumentSign() {
   };
   
   // handleDocumentClick 함수 개선
-  const handleDocumentClick = (event: React.MouseEvent<HTMLImageElement>) => {
+  const handleDocumentClick = (event: React.MouseEvent<HTMLElement>) => {
     // 이미 서명이 완료된 경우 클릭 이벤트 무시
     if (isCurrentDocumentFullySigned()) {
       console.log('이미 서명이 완료되어 추가 서명 필드를 생성할 수 없습니다.');
@@ -415,8 +404,22 @@ export default function DocumentSign() {
     // 이벤트 버블링 방지
     event.stopPropagation();
 
-    // 이미지 요소 직접 접근
-    const imageElement = event.currentTarget as HTMLImageElement;
+    // 이미지 요소 접근
+    let imageElement: HTMLImageElement;
+    
+    // 클릭된 요소가 이미지인지 확인
+    if (event.currentTarget instanceof HTMLImageElement) {
+      imageElement = event.currentTarget as HTMLImageElement;
+    } else {
+      // 이미지 컨테이너 내의 이미지 요소 찾기
+      const container = event.currentTarget;
+      const imgElement = container.querySelector('img');
+      if (!imgElement) {
+        console.error('이미지 요소를 찾을 수 없습니다.');
+        return;
+      }
+      imageElement = imgElement;
+    }
     
     // 이미지의 정확한 위치와 크기 정보 가져오기
     const rect = imageElement.getBoundingClientRect();
@@ -488,6 +491,9 @@ export default function DocumentSign() {
       } catch (err) {
         console.error('세션 스토리지 업데이트 오류:', err);
       }
+    } else {
+      console.error(`문서 인덱스 ${currentDocIndex + 1}에 해당하는 문서를 찾을 수 없습니다.`);
+      console.log('현재 문서 배열:', documents.map(doc => doc.id));
     }
     
     addError('success', '서명 위치가 추가되었습니다.', true, 2000);
@@ -846,7 +852,10 @@ export default function DocumentSign() {
               {currentDocument.type === 'image' ? (
                 <div 
                   className="relative w-full h-[600px]"
-                  onClick={handleDocumentClick}
+                  onClick={(e) => {
+                    e.stopPropagation(); // 이벤트 버블링 방지
+                    handleDocumentClick(e);
+                  }}
                 >
                   {currentDocument.imageUrl && (
                     <div className="w-full h-full flex items-center justify-center">
@@ -859,7 +868,10 @@ export default function DocumentSign() {
                           objectFit: 'contain'
                         }}
                         className="bg-white"
-                        onClick={handleDocumentClick}
+                        onClick={(e) => {
+                          e.stopPropagation(); // 이벤트 버블링 방지
+                          handleDocumentClick(e);
+                        }}
                         onLoad={() => {
                           console.log('이미지 로드 성공:', currentDocument.imageUrl);
                         }}
