@@ -405,20 +405,18 @@ export default function DocumentSign() {
   };
   
   // handleDocumentClick 함수 개선
-  const handleDocumentClick = (event: React.MouseEvent<HTMLDivElement>) => {
+  const handleDocumentClick = (event: React.MouseEvent<HTMLImageElement>) => {
     // 이미 서명이 완료된 경우 클릭 이벤트 무시
     if (isCurrentDocumentFullySigned()) {
       console.log('이미 서명이 완료되어 추가 서명 필드를 생성할 수 없습니다.');
       return;
     }
 
-    // 이미지 요소 찾기
-    const imageContainer = event.currentTarget;
-    const imageElement = imageContainer.querySelector('img') as HTMLImageElement;
-    if (!imageElement) {
-      console.error('이미지 요소를 찾을 수 없습니다.');
-      return;
-    }
+    // 이벤트 버블링 방지
+    event.stopPropagation();
+
+    // 이미지 요소 직접 접근
+    const imageElement = event.currentTarget as HTMLImageElement;
     
     // 이미지의 정확한 위치와 크기 정보 가져오기
     const rect = imageElement.getBoundingClientRect();
@@ -839,7 +837,6 @@ export default function DocumentSign() {
             
             <div 
               className="relative border border-gray-300 rounded-md mb-6 overflow-hidden"
-              onClick={handleDocumentClick}
               style={{ cursor: 'crosshair' }}
               onMouseMove={handleDragMove}
               onMouseUp={handleDragEnd}
@@ -847,7 +844,10 @@ export default function DocumentSign() {
             >
               {/* 문서 표시 (이미지 또는 PDF) */}
               {currentDocument.type === 'image' ? (
-                <div className="relative w-full h-[600px]">
+                <div 
+                  className="relative w-full h-[600px]"
+                  onClick={handleDocumentClick}
+                >
                   {currentDocument.imageUrl && (
                     <div className="w-full h-full flex items-center justify-center">
                       <img 
@@ -859,6 +859,7 @@ export default function DocumentSign() {
                           objectFit: 'contain'
                         }}
                         className="bg-white"
+                        onClick={handleDocumentClick}
                         onLoad={() => {
                           console.log('이미지 로드 성공:', currentDocument.imageUrl);
                         }}
@@ -933,7 +934,69 @@ export default function DocumentSign() {
                   ))}
                 </div>
               ) : (
-                <div className="relative w-full h-[600px]">
+                <div 
+                  className="relative w-full h-[600px]"
+                  onClick={(event) => {
+                    // PDF 문서에서는 컨테이너 클릭 이벤트로 처리
+                    // 서명 필드가 이미 있는 경우 해당 이벤트는 위에서 처리되므로 여기서는 무시됨
+                    if (isCurrentDocumentFullySigned()) {
+                      console.log('이미 서명이 완료되어 추가 서명 필드를 생성할 수 없습니다.');
+                      return;
+                    }
+                    
+                    const container = event.currentTarget;
+                    const rect = container.getBoundingClientRect();
+                    
+                    // 클릭 위치 계산
+                    const offsetX = event.clientX - rect.left;
+                    const offsetY = event.clientY - rect.top;
+                    
+                    // PDF 문서에서는 화면에 표시된 좌표를 그대로 사용
+                    const signatureWidth = 150;
+                    const signatureHeight = 80;
+                    
+                    // 중앙 정렬 및 경계 체크
+                    const centeredX = offsetX - (signatureWidth / 2);
+                    const centeredY = offsetY - (signatureHeight / 2);
+                    const containerWidth = container.clientWidth;
+                    const containerHeight = container.clientHeight;
+                    const adjustedX = Math.max(0, Math.min(centeredX, containerWidth - signatureWidth));
+                    const adjustedY = Math.max(0, Math.min(centeredY, containerHeight - signatureHeight));
+                    
+                    // 새 서명 위치 생성
+                    const newPosition = {
+                      id: `${Date.now()}`,
+                      x: adjustedX,
+                      y: adjustedY,
+                      width: signatureWidth,
+                      height: signatureHeight,
+                      displayX: adjustedX,
+                      displayY: adjustedY,
+                      displayWidth: signatureWidth,
+                      displayHeight: signatureHeight,
+                      signed: false
+                    };
+                    
+                    // 서명 위치 추가
+                    const newDocuments = [...documents];
+                    const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
+                    
+                    if (docIndex !== -1) {
+                      newDocuments[docIndex].signaturePositions.push(newPosition);
+                      setDocuments(newDocuments);
+                      
+                      // 세션 스토리지 업데이트
+                      try {
+                        sessionStorage.setItem('signedDocuments', JSON.stringify(newDocuments));
+                        console.log('PDF 서명 필드 위치 저장 완료');
+                      } catch (err) {
+                        console.error('세션 스토리지 업데이트 오류:', err);
+                      }
+                    }
+                    
+                    addError('success', 'PDF 서명 위치가 추가되었습니다.', true, 2000);
+                  }}
+                >
                   {currentDocument.pdfUrl && (
                     <PDFViewer pdfUrl={currentDocument.pdfUrl} />
                   )}
