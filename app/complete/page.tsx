@@ -188,17 +188,13 @@ export default function Complete() {
         console.log(`원본 이미지 로드 성공 (${docId}): ${img.naturalWidth}x${img.naturalHeight}`);
         
         // 원본 이미지의 실제 크기
-        const originalWidth = img.naturalWidth;
-        const originalHeight = img.naturalHeight;
-        
-        // 문서 객체에 원본 크기 정보 저장 (다운로드 시 재사용)
-        document.naturalWidth = originalWidth;
-        document.naturalHeight = originalHeight;
+        const naturalWidth = img.naturalWidth;
+        const naturalHeight = img.naturalHeight;
         
         // 캔버스 생성 및 크기 설정 (원본 이미지 크기로 설정)
         const canvas = document.createElement('canvas');
-        canvas.width = originalWidth;
-        canvas.height = originalHeight;
+        canvas.width = naturalWidth;
+        canvas.height = naturalHeight;
         
         const ctx = canvas.getContext('2d');
         if (!ctx) {
@@ -207,7 +203,7 @@ export default function Complete() {
         }
         
         // 원본 이미지 그리기
-        ctx.drawImage(img, 0, 0, originalWidth, originalHeight);
+        ctx.drawImage(img, 0, 0, naturalWidth, naturalHeight);
         
         // 서명 이미지 로드
         const sigImg = new window.Image();
@@ -222,7 +218,7 @@ export default function Complete() {
             console.log(`서명된 위치 수: ${signedPositions.length}`);
             
             signedPositions.forEach((pos: any) => {
-              // 기존에 저장된 원본 이미지 기준 좌표 사용 (document-sign/page.tsx에서 계산)
+              // 원본 이미지 기준 좌표 사용
               const x = pos.x;
               const y = pos.y;
               const width = pos.width;
@@ -303,13 +299,13 @@ export default function Complete() {
         console.log(`원본 이미지 로드 성공 (${docId}): ${img.naturalWidth}x${img.naturalHeight}`);
         
         // 원본 이미지의 실제 크기
-        const originalWidth = img.naturalWidth;
-        const originalHeight = img.naturalHeight;
+        const naturalWidth = img.naturalWidth;
+        const naturalHeight = img.naturalHeight;
         
         // 캔버스 생성 및 크기 설정 (원본 이미지 크기로 설정)
         const canvas = document.createElement('canvas');
-        canvas.width = originalWidth;
-        canvas.height = originalHeight;
+        canvas.width = naturalWidth;
+        canvas.height = naturalHeight;
         
         const ctx = canvas.getContext('2d');
         if (!ctx) {
@@ -319,7 +315,7 @@ export default function Complete() {
         }
         
         // 원본 이미지 그리기
-        ctx.drawImage(img, 0, 0, originalWidth, originalHeight);
+        ctx.drawImage(img, 0, 0, naturalWidth, naturalHeight);
         
         // 서명 이미지 로드
         const sigImg = new window.Image();
@@ -334,7 +330,7 @@ export default function Complete() {
             console.log(`다운로드할 문서의 서명된 위치 수: ${signedPositions.length}`);
             
             signedPositions.forEach((pos: any) => {
-              // 기존에 저장된 원본 이미지 기준 좌표 사용 (document-sign/page.tsx에서 계산)
+              // 원본 이미지 기준 좌표 사용
               const x = pos.x;
               const y = pos.y;
               const width = pos.width;
@@ -359,7 +355,7 @@ export default function Complete() {
           
           // 링크 생성 및 다운로드 트리거
           const link = document.createElement('a');
-          const filename = document.filename || `서명문서_${docId}.jpg`;
+          const filename = `서명문서_${docId}.jpg`;
           link.download = filename;
           link.href = dataUrl;
           link.click();
@@ -538,9 +534,9 @@ export default function Complete() {
                       }`}
                       onClick={() => toggleDocumentSelection(doc.id)}
                     >
-                      <div className="relative h-40 bg-gray-100">
+                      <div className="relative h-40 bg-gray-100" id={`preview-container-${doc.id}`}>
                         <img
-                          id={`preview-img-${doc.id}`}
+                          id={`preview-image-${doc.id}`}
                           src={doc.imageUrl}
                           alt={`문서 ${doc.id}`}
                           style={{ 
@@ -550,28 +546,31 @@ export default function Complete() {
                           }}
                           onLoad={() => {
                             console.log('미리보기 이미지 로드 성공:', doc.id);
-                          }}
-                          onError={(e) => {
-                            console.error('미리보기 이미지 로드 실패:', doc.id);
-                            
-                            // 다른 경로 시도
-                            e.currentTarget.src = doc.imageUrl;
-                            
-                            // 두 번째 시도도 실패하면 빈 이미지로 대체
-                            e.currentTarget.onerror = () => {
-                              e.currentTarget.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
-                              e.currentTarget.onerror = null; // 무한 루프 방지
-                            };
+                            renderSignedDocumentPreview(doc.id);
                           }}
                         />
                       </div>
-                      <div className="p-3 bg-white">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-gray-700">문서 {doc.id}</span>
-                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
-                            {doc.signaturePositions?.filter((pos: any) => pos.signed).length || 0}개 서명
-                          </span>
+                      <div className="p-4 bg-white border-t border-gray-200 flex justify-between items-center">
+                        <div className="text-sm text-gray-600">
+                          <span className="font-medium">문서 {doc.id}</span>
+                          <span className="mx-1">•</span>
+                          <span>{doc.signaturePositions.filter((pos: any) => pos.signed).length}개 서명</span>
                         </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation(); // 버블링 방지
+                            downloadSignedDocument(doc.id);
+                          }}
+                          icon={
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                          }
+                        >
+                          다운로드
+                        </Button>
                       </div>
                     </div>
                   ))}
