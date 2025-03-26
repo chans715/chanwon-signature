@@ -19,6 +19,8 @@ interface SignaturePosition {
   width: number;
   height: number;
   signed?: boolean;
+  displayX?: number;
+  displayY?: number;
 }
 
 interface Document {
@@ -174,12 +176,15 @@ export default function Complete() {
         return;
       }
       
-      // 이미지 로드 및 캔버스 처리
+      // 이미지 로드
       const img = new window.Image();
       img.crossOrigin = 'anonymous';
       img.src = document.imageUrl;
       
+      // 이미지 로드 완료 후 처리
       img.onload = () => {
+        console.log(`원본 이미지 로드 성공 (${document.id}): ${img.naturalWidth}x${img.naturalHeight}`);
+        
         // 원본 이미지의 실제 크기
         const originalWidth = img.naturalWidth;
         const originalHeight = img.naturalHeight;
@@ -204,17 +209,34 @@ export default function Complete() {
         sigImg.src = signature;
         
         sigImg.onload = () => {
-          // 각 서명 위치에 서명 추가 (이미 원본 이미지 기준으로 저장되어 있음)
+          // 각 서명 위치에 서명 추가
           if (document.signaturePositions && document.signaturePositions.length > 0) {
             document.signaturePositions.forEach((pos: any) => {
               if (pos.signed) {
                 // 서명 위치 정보 출력 (디버깅용)
-                console.log(`미리보기 서명 위치: ID=${pos.id}, x=${pos.x}, y=${pos.y}, 너비=${pos.width}, 높이=${pos.height}`);
+                console.log(`서명 합성 정보 (문서 ${document.id}, 위치 ${pos.id}):`);
+                console.log(`- 원본 좌표: x=${pos.x}, y=${pos.y}, 너비=${pos.width}, 높이=${pos.height}`);
+                if (pos.displayX !== undefined) {
+                  console.log(`- 화면 좌표: displayX=${pos.displayX}, displayY=${pos.displayY}`);
+                }
                 
-                // 원본 이미지에 서명 그리기 (좌표는 이미 원본 이미지 기준으로 저장되어 있음)
-                ctx.drawImage(sigImg, pos.x, pos.y, pos.width, pos.height);
+                try {
+                  // 원본 이미지 좌표에 서명 그리기
+                  ctx.drawImage(
+                    sigImg,             // 서명 이미지
+                    pos.x,              // 원본 이미지 기준 X 좌표
+                    pos.y,              // 원본 이미지 기준 Y 좌표
+                    pos.width,          // 원본 이미지 기준 너비
+                    pos.height          // 원본 이미지 기준 높이
+                  );
+                  console.log('서명 이미지 합성 성공');
+                } catch (err) {
+                  console.error('서명 이미지 그리기 실패:', err);
+                }
               }
             });
+          } else {
+            console.log('서명 위치가 없거나 서명된 위치가 없습니다.');
           }
           
           // 캔버스 이미지를 미리보기에 적용
@@ -292,13 +314,31 @@ export default function Complete() {
         return;
       }
       
-      // 문서 정보 파싱
-      const documents = JSON.parse(storedDocuments);
-      const document = documents.find((d: any) => d.id === docId);
+      console.log(`문서 ${docId} 다운로드 시작...`);
+      console.log(`서명 데이터 크기: ${signature.length}`);
       
-      if (!document) {
-        console.error(`ID가 ${docId}인 문서를 찾을 수 없습니다.`);
-        setError('선택한 문서를 찾을 수 없습니다.');
+      // 문서 정보 파싱
+      let documents;
+      let document;
+      
+      try {
+        documents = JSON.parse(storedDocuments);
+        document = documents.find((d: any) => d.id === docId);
+        
+        console.log(`서명된 문서 수: ${documents.length}`);
+        
+        if (!document) {
+          console.error(`ID가 ${docId}인 문서를 찾을 수 없습니다.`);
+          setError('선택한 문서를 찾을 수 없습니다.');
+          if (onComplete) onComplete();
+          return;
+        }
+        
+        console.log(`문서 정보: ID=${document.id}, 타입=${document.type}, URL=${document.imageUrl}`);
+        console.log(`서명 위치 수: ${document.signaturePositions?.length || 0}`);
+      } catch (parseError) {
+        console.error('문서 정보 파싱 오류:', parseError);
+        setError('문서 정보 형식이 올바르지 않습니다.');
         if (onComplete) onComplete();
         return;
       }
@@ -319,7 +359,10 @@ export default function Complete() {
       img.crossOrigin = 'anonymous';
       img.src = document.imageUrl;
       
+      // 이미지 로드 완료 후 처리
       img.onload = () => {
+        console.log(`원본 이미지 로드 성공 (${document.id}): ${img.naturalWidth}x${img.naturalHeight}`);
+        
         // 원본 이미지의 실제 크기
         const originalWidth = img.naturalWidth;
         const originalHeight = img.naturalHeight;
@@ -343,12 +386,29 @@ export default function Complete() {
             document.signaturePositions.forEach((pos: any) => {
               if (pos.signed) {
                 // 서명 위치 정보 출력 (디버깅용)
-                console.log(`다운로드 서명 위치: ID=${pos.id}, x=${pos.x}, y=${pos.y}, 너비=${pos.width}, 높이=${pos.height}`);
+                console.log(`서명 합성 정보 (문서 ${document.id}, 위치 ${pos.id}):`);
+                console.log(`- 원본 좌표: x=${pos.x}, y=${pos.y}, 너비=${pos.width}, 높이=${pos.height}`);
+                if (pos.displayX !== undefined) {
+                  console.log(`- 화면 좌표: displayX=${pos.displayX}, displayY=${pos.displayY}`);
+                }
                 
-                // 원본 이미지에 서명 그리기 (좌표는 이미 원본 이미지 기준으로 저장되어 있음)
-                ctx.drawImage(sigImg, pos.x, pos.y, pos.width, pos.height);
+                try {
+                  // 원본 이미지 좌표에 서명 그리기
+                  ctx.drawImage(
+                    sigImg,             // 서명 이미지
+                    pos.x,              // 원본 이미지 기준 X 좌표
+                    pos.y,              // 원본 이미지 기준 Y 좌표
+                    pos.width,          // 원본 이미지 기준 너비
+                    pos.height          // 원본 이미지 기준 높이
+                  );
+                  console.log('서명 이미지 합성 성공');
+                } catch (err) {
+                  console.error('서명 이미지 그리기 실패:', err);
+                }
               }
             });
+          } else {
+            console.log('서명 위치가 없거나 서명된 위치가 없습니다.');
           }
           
           // 최종 캔버스로 이미지 다운로드
@@ -379,8 +439,10 @@ export default function Complete() {
   // 최종 다운로드 처리 함수 (콜백 추가)
   const finalizeDownload = (canvas: HTMLCanvasElement, downloadDocId: number, onComplete?: () => void) => {
     try {
+      console.log('다운로드 시작...');
       // 캔버스를 이미지로 변환
       const signedImageUrl = canvas.toDataURL('image/jpeg', 0.95);
+      console.log('이미지 URL 생성 완료', signedImageUrl.substring(0, 50) + '...');
       
       // 다운로드 링크 생성
       const downloadLink = document.createElement('a');
@@ -388,15 +450,24 @@ export default function Complete() {
       downloadLink.download = `서명문서_${downloadDocId}_${new Date().toISOString().slice(0, 10)}.jpg`;
       
       // 다운로드 트리거
+      console.log('다운로드 링크 클릭 시도...');
       document.body.appendChild(downloadLink);
       downloadLink.click();
-      document.body.removeChild(downloadLink);
       
-      // 다운로드 성공 메시지
-      setSuccess(`문서 ${downloadDocId}가 성공적으로 다운로드되었습니다.`);
-      
-      // 콜백 함수 실행 (다음 문서 다운로드)
-      if (onComplete) onComplete();
+      // 약간의 지연 후 링크 제거 (바로 제거하면 다운로드가 중단될 수 있음)
+      setTimeout(() => {
+        document.body.removeChild(downloadLink);
+        console.log('다운로드 링크 제거됨');
+        
+        // 다운로드 성공 메시지
+        setSuccess(`문서 ${downloadDocId}가 성공적으로 다운로드되었습니다.`);
+        
+        // 콜백 함수 실행 (다음 문서 다운로드)
+        if (onComplete) {
+          console.log('다음 다운로드를 위한 콜백 호출');
+          onComplete();
+        }
+      }, 100);
     } catch (error) {
       console.error('최종 다운로드 처리 중 오류:', error);
       setError('문서 이미지 생성 중 오류가 발생했습니다.');
