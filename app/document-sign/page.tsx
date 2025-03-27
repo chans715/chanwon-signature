@@ -395,6 +395,8 @@ export default function DocumentSign() {
   
   // handleDocumentClick 함수 개선
   const handleDocumentClick = (event: React.MouseEvent<HTMLElement>) => {
+    console.log('문서 클릭 이벤트 발생');
+    
     // 이미 서명이 완료된 경우 클릭 이벤트 무시
     if (isCurrentDocumentFullySigned()) {
       console.log('이미 서명이 완료되어 추가 서명 필드를 생성할 수 없습니다.');
@@ -408,25 +410,31 @@ export default function DocumentSign() {
     let imageElement: HTMLImageElement;
     
     // 클릭된 요소가 이미지인지 확인
-    if (event.currentTarget instanceof HTMLImageElement) {
-      imageElement = event.currentTarget as HTMLImageElement;
+    if (event.target instanceof HTMLImageElement) {
+      imageElement = event.target as HTMLImageElement;
+      console.log('클릭된 요소는 이미지입니다.');
     } else {
+      console.log('클릭된 요소는 이미지가 아닙니다. 이미지 요소를 찾습니다.');
       // 이미지 컨테이너 내의 이미지 요소 찾기
       const container = event.currentTarget;
       const imgElement = container.querySelector('img');
       if (!imgElement) {
         console.error('이미지 요소를 찾을 수 없습니다.');
+        addError('error', '이미지 요소를 찾을 수 없습니다.', true, 3000);
         return;
       }
       imageElement = imgElement;
+      console.log('컨테이너 내에서 이미지 요소를 찾았습니다.');
     }
     
     // 이미지의 정확한 위치와 크기 정보 가져오기
     const rect = imageElement.getBoundingClientRect();
+    console.log('이미지 위치 정보:', rect);
     
     // 이미지 내부에서의 클릭 위치 계산 (이미지 좌상단 기준)
     const offsetX = event.clientX - rect.left;
     const offsetY = event.clientY - rect.top;
+    console.log(`클릭 좌표 (이미지 내): X=${offsetX}, Y=${offsetY}`);
     
     // 이미지의 화면 표시 크기와 원본 크기 비율 계산
     const scaleX = imageElement.naturalWidth / rect.width;
@@ -474,27 +482,34 @@ export default function DocumentSign() {
       signed: false, // 초기 상태는 서명되지 않음
     };
     
+    console.log('새로운 서명 위치 객체 생성:', newPosition);
+    
     // 새로운 서명 위치 추가
-      const newDocuments = [...documents];
-      const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
+    const newDocuments = [...documents];
+    const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
+    
+    console.log(`현재 문서 인덱스: ${currentDocIndex}, 검색된 문서 인덱스: ${docIndex}`);
+    console.log('현재 문서 배열:', newDocuments.map(doc => `ID: ${doc.id}`));
+    
+    if (docIndex !== -1) {
+      newDocuments[docIndex].signaturePositions.push(newPosition);
+      setDocuments(newDocuments);
       
-      if (docIndex !== -1) {
-        newDocuments[docIndex].signaturePositions.push(newPosition);
-        setDocuments(newDocuments);
-        
-        // 세션 스토리지 업데이트
-        try {
-          sessionStorage.setItem('signedDocuments', JSON.stringify(newDocuments));
+      // 세션 스토리지 업데이트
+      try {
+        sessionStorage.setItem('signedDocuments', JSON.stringify(newDocuments));
         console.log('서명 필드 위치 저장 완료');
-        } catch (err) {
-          console.error('세션 스토리지 업데이트 오류:', err);
-        }
+      } catch (err) {
+        console.error('세션 스토리지 업데이트 오류:', err);
+      }
+      
+      // 성공 메시지 표시
+      addError('success', '서명 위치가 추가되었습니다.', true, 2000);
     } else {
       console.error(`문서 인덱스 ${currentDocIndex + 1}에 해당하는 문서를 찾을 수 없습니다.`);
-      console.log('현재 문서 배열:', documents.map(doc => doc.id));
+      console.log('현재 문서 배열:', documents.map(doc => `ID: ${doc.id}`));
+      addError('error', '문서를 찾을 수 없습니다.', true, 3000);
     }
-    
-    addError('success', '서명 위치가 추가되었습니다.', true, 2000);
   };
   
   // 서명 위치 삭제
@@ -886,13 +901,16 @@ export default function DocumentSign() {
               {currentDocument.type === 'image' ? (
                 <div 
                   className="relative w-full h-[600px]"
-                  onClick={(e) => {
-                    e.stopPropagation(); // 이벤트 버블링 방지
-                    handleDocumentClick(e);
-                  }}
                 >
                   {currentDocument.imageUrl && (
-                    <div className="w-full h-full flex items-center justify-center">
+                    <div className="w-full h-full flex items-center justify-center"
+                      onClick={(e) => {
+                        // 이벤트 버블링 방지
+                        e.stopPropagation();
+                        // 클릭 이벤트 직접 처리
+                        handleDocumentClick(e);
+                      }}
+                    >
                       <img 
                         src={`${currentDocument.imageUrl}`}
                         alt={`문서 ${currentDocIndex + 1}`}
@@ -984,7 +1002,6 @@ export default function DocumentSign() {
                   className="relative w-full h-[600px]"
                   onClick={(event) => {
                     // PDF 문서에서는 컨테이너 클릭 이벤트로 처리
-                    // 서명 필드가 이미 있는 경우 해당 이벤트는 위에서 처리되므로 여기서는 무시됨
                     if (isCurrentDocumentFullySigned()) {
                       console.log('이미 서명이 완료되어 추가 서명 필드를 생성할 수 없습니다.');
                       return;
