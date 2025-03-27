@@ -194,12 +194,15 @@ export default function Complete() {
   // 서명된 문서 미리보기 렌더링 함수 개선
   const renderSignedDocumentPreview = (docId: number) => {
     try {
+      console.log(`[시작] 문서 ID:${docId} 미리보기 렌더링 시작`);
+      
       // 로컬 스토리지에서 서명된 문서 정보 가져오기
       const storedDocuments = localStorage.getItem('signedDocumentsForDownload');
       const signature = localStorage.getItem('userSignatureForDownload');
       
       if (!storedDocuments || !signature) {
         console.error('저장된 문서 정보나 서명을 찾을 수 없습니다.', {storedDocuments: !!storedDocuments, signature: !!signature});
+        setError('서명된 문서 정보나 서명을 찾을 수 없습니다.');
         return;
       }
       
@@ -209,8 +212,11 @@ export default function Complete() {
       
       if (!document) {
         console.error(`ID가 ${docId}인 문서를 찾을 수 없습니다.`);
+        setError(`ID가 ${docId}인 문서를 찾을 수 없습니다.`);
         return;
       }
+      
+      console.log(`문서 정보:`, document);
       
       // 미리보기 컨테이너와 이미지 요소 찾기
       const previewContainer = document.getElementById(`preview-container-${docId}`);
@@ -223,10 +229,11 @@ export default function Complete() {
           containerExists: !!previewContainer,
           imgExists: !!previewImg
         });
+        setError('미리보기 요소를 찾을 수 없습니다.');
         return;
       }
       
-      console.log(`문서 ID:${docId} 미리보기 렌더링 시작...`);
+      console.log(`문서 ID:${docId} - 서명 위치 수: ${document.signaturePositions?.length || 0}`);
       
       // 원본 이미지 로드
       const img = new window.Image();
@@ -249,89 +256,110 @@ export default function Complete() {
         const ctx = canvas.getContext('2d');
         if (!ctx) {
           console.error('캔버스 컨텍스트를 생성할 수 없습니다.');
+          setError('캔버스 컨텍스트를 생성할 수 없습니다.');
           return;
         }
         
-        // 원본 이미지 그리기
+        // 원본 이미지를 캔버스에 그리기
         ctx.drawImage(img, 0, 0, naturalWidth, naturalHeight);
         
-        // 서명 이미지 로드
-        const sigImg = new window.Image();
-        sigImg.crossOrigin = 'anonymous';
-        sigImg.src = signature;
+        let sigImg: HTMLImageElement | null = null;
         
-        sigImg.onload = () => {
-          // 각 서명 위치에 서명 추가
-          if (document.signaturePositions && document.signaturePositions.length > 0) {
-            // 서명 위치 확인 및 처리
-            const signedPositions = document.signaturePositions.filter((pos: any) => pos.signed);
-            console.log(`문서 ID:${docId}의 서명된 위치 수: ${signedPositions.length}`);
-            console.log('서명 위치 데이터:', JSON.stringify(signedPositions, null, 2));
+        // 서명된 위치가 있는지 확인
+        const signedPositions = document.signaturePositions?.filter((p: any) => p.signed) || [];
+        
+        if (signedPositions.length > 0) {
+          console.log(`서명된 위치 발견: ${signedPositions.length}개`);
+          
+          // 서명 이미지 로드
+          sigImg = new window.Image();
+          sigImg.crossOrigin = 'anonymous';
+          sigImg.src = signature;
+          
+          sigImg.onload = () => {
+            console.log('서명 이미지 로드 성공:', {
+              width: sigImg!.width,
+              height: sigImg!.height
+            });
             
-            if (signedPositions.length === 0) {
-              console.warn(`문서 ID:${docId}에 서명된 위치가 없습니다.`);
-            }
-            
-            signedPositions.forEach((pos: any, index: number) => {
+            // 서명된 각 위치에 서명 이미지 그리기
+            signedPositions.forEach((position: any, index: number) => {
               try {
-                // 원본 이미지 기준 좌표 사용
-                const x = pos.x;
-                const y = pos.y;
-                const width = pos.width;
-                const height = pos.height;
+                console.log(`서명 위치 ${index + 1}/${signedPositions.length} 처리 중:`, {
+                  x: position.x,
+                  y: position.y,
+                  width: position.width,
+                  height: position.height
+                });
                 
-                console.log(`서명 위치 ID:${pos.id} 그리기 - 위치: (${x}, ${y}), 크기: ${width}x${height}`);
-                
-                // 원본 이미지 위에 서명 이미지 그리기
-                ctx.drawImage(sigImg, x, y, width, height);
-                console.log(`서명 이미지 합성 성공 - 위치 ID:${pos.id}`);
-              } catch (err) {
-                console.error(`서명 이미지 그리기 실패 - 위치 ID:${pos.id}:`, err);
+                // 서명 이미지를 해당 위치에 그리기
+                ctx.drawImage(
+                  sigImg!, 
+                  position.x, 
+                  position.y, 
+                  position.width, 
+                  position.height
+                );
+              } catch (drawErr) {
+                console.error(`서명 이미지 그리기 실패 (위치 ${index + 1}):`, drawErr);
               }
             });
-          } else {
-            console.log(`문서 ID:${docId}에 서명 위치가 없거나 서명된 위치가 없습니다.`);
-          }
+            
+            // 완성된 캔버스 이미지를 미리보기에 반영
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+            previewImg.src = dataUrl;
+            
+            // 캔버스 이미지를 가지고 있기 (다운로드용)
+            previewImg.dataset.signedImage = dataUrl;
+            
+            console.log(`문서 ID:${docId} 미리보기 렌더링 완료`);
+            setSuccess(`문서 ID:${docId} 미리보기 생성 완료`);
+          };
           
-          // 캔버스 이미지를 미리보기에 적용
-          const dataUrl = canvas.toDataURL('image/jpeg');
+          sigImg.onerror = (error) => {
+            console.error('서명 이미지 로드 실패:', error);
+            setError('서명 이미지를 로드할 수 없습니다.');
+            
+            // 서명 없이 원본 이미지만 표시
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+            previewImg.src = dataUrl;
+            previewImg.dataset.signedImage = dataUrl;
+          };
+        } else {
+          console.log('서명된 위치가 없습니다. 원본 이미지만 표시합니다.');
+          
+          // 서명 없이 원본 이미지만 표시
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
           previewImg.src = dataUrl;
-          
-          // 미리보기 이미지 스타일 설정 (화면에 맞게 조정)
-          previewImg.style.maxWidth = '100%';
-          previewImg.style.height = 'auto';
-          
-          console.log(`문서 ID:${docId} 미리보기 렌더링 완료`);
-        };
-        
-        // 서명 이미지 로드 실패 처리
-        sigImg.onerror = (error) => {
-          console.error('서명 이미지 로드 실패:', error);
-          alert('서명 이미지를 불러올 수 없습니다. 처음부터 다시 시도해 주세요.');
-        };
+          previewImg.dataset.signedImage = dataUrl;
+        }
       };
       
-      // 원본 이미지 로드 실패 처리
       img.onerror = (error) => {
-        console.error('원본 이미지 로드 실패:', error);
-        alert('원본 문서 이미지를 불러올 수 없습니다. 다시 시도해 주세요.');
+        console.error('원본 이미지 로드 실패:', error, document.imageUrl);
+        setError('원본 이미지를 로드할 수 없습니다.');
+        
+        // 에러 발생 시 빈 이미지 표시
+        previewImg.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
       };
     } catch (error) {
-      console.error('미리보기 렌더링 오류:', error);
-      alert('미리보기 생성 중 오류가 발생했습니다. 새로고침 후 다시 시도해 주세요.');
+      console.error('미리보기 렌더링 중 오류 발생:', error);
+      setError('미리보기 렌더링 중 오류가 발생했습니다.');
     }
   };
 
-  // 단일 문서 다운로드 함수
+  // 단일 문서 다운로드 함수 개선
   const downloadSingleDocument = (docId: number) => {
     try {
+      console.log(`[시작] 문서 ID:${docId} 다운로드`);
+      
       // 로컬 스토리지에서 서명된 문서 정보 가져오기
       const storedDocuments = localStorage.getItem('signedDocumentsForDownload');
       const signature = localStorage.getItem('userSignatureForDownload');
       
       if (!storedDocuments || !signature) {
-        console.error('저장된 문서 정보나 서명을 찾을 수 없습니다.', {storedDocuments: !!storedDocuments, signature: !!signature});
-        alert('서명 정보를 찾을 수 없습니다. 다시 시도해주세요.');
+        console.error('저장된 문서 정보나 서명을 찾을 수 없습니다.');
+        setError('저장된 문서 정보나 서명을 찾을 수 없습니다.');
         return;
       }
       
@@ -341,99 +369,144 @@ export default function Complete() {
       
       if (!document) {
         console.error(`ID가 ${docId}인 문서를 찾을 수 없습니다.`);
-        alert('문서 정보를 찾을 수 없습니다.');
+        setError(`ID가 ${docId}인 문서를 찾을 수 없습니다.`);
         return;
       }
       
-      console.log(`문서 ID:${docId} 다운로드 시작...`);
-      console.log('문서 데이터:', JSON.stringify(document, null, 2));
+      // 이미 캔버스에 렌더링된 서명 이미지가 있는지 확인
+      const previewImg = document.getElementById(`preview-image-${docId}`) as HTMLImageElement;
+      
+      if (previewImg && previewImg.dataset.signedImage) {
+        console.log('이미 렌더링된 서명 이미지 사용:', previewImg.dataset.signedImage.substring(0, 50) + '...');
+        
+        // 렌더링된 이미지 다운로드
+        const link = document.createElement('a');
+        link.href = previewImg.dataset.signedImage;
+        link.download = `서명_문서_${docId}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        setSuccess(`문서 ID:${docId} 다운로드 완료`);
+        return;
+      }
+      
+      console.log('캐시된 이미지 없음, 새로 렌더링 시작');
       
       // 원본 이미지 로드
       const img = new window.Image();
       img.crossOrigin = 'anonymous';
       img.src = document.imageUrl;
       
-      // 이미지 로드 완료 후 처리
       img.onload = () => {
-        console.log(`원본 이미지 크기: ${img.naturalWidth}x${img.naturalHeight}`);
+        console.log(`원본 이미지 로드 성공: ${img.naturalWidth}x${img.naturalHeight}`);
         
+        // 원본 이미지의 실제 크기
+        const naturalWidth = img.naturalWidth;
+        const naturalHeight = img.naturalHeight;
+        
+        // 캔버스 생성 및 크기 설정
         const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
+        canvas.width = naturalWidth;
+        canvas.height = naturalHeight;
         
         const ctx = canvas.getContext('2d');
         if (!ctx) {
           console.error('캔버스 컨텍스트를 생성할 수 없습니다.');
-          alert('이미지 처리 중 오류가 발생했습니다.');
+          setError('캔버스 컨텍스트를 생성할 수 없습니다.');
           return;
         }
         
-        // 원본 이미지 그리기
-        ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight);
+        // 원본 이미지를 캔버스에 그리기
+        ctx.drawImage(img, 0, 0, naturalWidth, naturalHeight);
         
-        // 서명 이미지 로드
-        const sigImg = new window.Image();
-        sigImg.crossOrigin = 'anonymous';
-        sigImg.src = signature;
+        // 서명된 위치가 있는지 확인
+        const signedPositions = document.signaturePositions?.filter((p: any) => p.signed) || [];
         
-        sigImg.onload = () => {
-          // 각 서명 위치에 서명 추가
-          if (document.signaturePositions && document.signaturePositions.length > 0) {
-            const signedPositions = document.signaturePositions.filter((pos: any) => pos.signed);
-            console.log(`다운로드할 서명 위치 수: ${signedPositions.length}`);
-            console.log('서명 위치 데이터:', JSON.stringify(signedPositions, null, 2));
+        if (signedPositions.length > 0) {
+          console.log(`서명된 위치 발견: ${signedPositions.length}개`);
+          
+          // 서명 이미지 로드
+          const sigImg = new window.Image();
+          sigImg.crossOrigin = 'anonymous';
+          sigImg.src = signature;
+          
+          sigImg.onload = () => {
+            console.log('서명 이미지 로드 성공:', sigImg.width, sigImg.height);
             
-            if (signedPositions.length === 0) {
-              console.warn('서명된 위치가 없습니다. 원본 이미지만 다운로드됩니다.');
-              alert('서명된 위치가 없습니다. 원본 이미지만 다운로드됩니다.');
-              // 서명이 없어도 원본은 다운로드
-            }
-            
-            signedPositions.forEach((pos: any, index: number) => {
+            // 서명된 각 위치에 서명 이미지 그리기
+            signedPositions.forEach((position: any, index: number) => {
               try {
-                // 원본 이미지 위에 서명 이미지 그리기
-                console.log(`서명 위치 (${index+1}): x=${pos.x}, y=${pos.y}, 너비=${pos.width}, 높이=${pos.height}`);
-                ctx.drawImage(sigImg, pos.x, pos.y, pos.width, pos.height);
-                console.log(`위치 ${index+1} 서명 합성 성공`);
-              } catch (err) {
-                console.error(`서명 이미지 그리기 실패 (위치 ${index+1}):`, err);
-                alert(`서명 이미지 합성 중 오류가 발생했습니다. (위치 ${index+1})`);
+                console.log(`서명 위치 ${index + 1} 처리:`, {
+                  x: position.x,
+                  y: position.y,
+                  width: position.width,
+                  height: position.height
+                });
+                
+                // 서명 이미지를 해당 위치에 그리기
+                ctx.drawImage(
+                  sigImg, 
+                  position.x, 
+                  position.y, 
+                  position.width, 
+                  position.height
+                );
+              } catch (drawErr) {
+                console.error(`서명 이미지 그리기 실패 (위치 ${index + 1}):`, drawErr);
               }
             });
-          } else {
-            console.warn('서명된 위치가 없습니다. 원본 이미지만 다운로드됩니다.');
-            alert('서명된 위치가 없습니다. 원본 이미지만 다운로드됩니다.');
-          }
+            
+            // 완성된 캔버스 이미지 다운로드
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+            
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `서명_문서_${docId}.jpg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            console.log(`문서 ID:${docId} 다운로드 완료`);
+            setSuccess(`문서 ID:${docId} 다운로드 완료`);
+          };
           
-          // 캔버스 이미지를 데이터 URL로 변환
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+          sigImg.onerror = (error) => {
+            console.error('서명 이미지 로드 실패:', error);
+            setError('서명 이미지를 로드할 수 없습니다.');
+            
+            // 서명 없이 원본 이미지만 다운로드
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+            
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `원본_문서_${docId}.jpg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          };
+        } else {
+          console.log('서명된 위치가 없습니다. 원본 이미지만 다운로드합니다.');
           
-          // 링크 생성 및 다운로드 트리거
+          // 서명 없이 원본 이미지만 다운로드
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+          
           const link = document.createElement('a');
-          const filename = `서명문서_${docId}.jpg`;
-          link.download = filename;
           link.href = dataUrl;
-          document.body.appendChild(link); // DOM에 링크 추가
+          link.download = `원본_문서_${docId}.jpg`;
+          document.body.appendChild(link);
           link.click();
-          document.body.removeChild(link); // 사용 후 제거
-          console.log(`문서 ${docId} 다운로드 완료`);
-        };
-        
-        // 서명 이미지 로드 실패 처리
-        sigImg.onerror = () => {
-          console.error('서명 이미지 로드 실패');
-          alert('서명 이미지를 로드할 수 없습니다. 처음부터 다시 시도해 주세요.');
-        };
+          document.body.removeChild(link);
+        }
       };
       
-      // 원본 이미지 로드 실패 처리
-      img.onerror = () => {
-        console.error('원본 이미지 로드 실패');
-        alert('원본 문서 이미지를 로드할 수 없습니다. 다시 시도해 주세요.');
+      img.onerror = (error) => {
+        console.error('원본 이미지 로드 실패:', error);
+        setError('원본 이미지를 로드할 수 없습니다.');
       };
     } catch (error) {
-      console.error('다운로드 처리 오류:', error);
-      alert('다운로드 중 오류가 발생했습니다. 새로고침 후 다시 시도해 주세요.');
+      console.error('다운로드 중 오류 발생:', error);
+      setError('다운로드 중 오류가 발생했습니다.');
     }
   };
 
@@ -523,6 +596,7 @@ export default function Complete() {
                     console.log(`문서 ID:${docId}, 위치 ID:${pos.id} 서명 합성 완료`);
                   } catch (err) {
                     console.error(`문서 ID:${docId}, 위치 ID:${pos.id} 서명 합성 실패:`, err);
+                    alert(`서명 이미지 합성 중 오류가 발생했습니다. (위치 ${index+1})`);
                   }
                 });
               } else {
