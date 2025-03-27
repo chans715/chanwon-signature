@@ -409,6 +409,9 @@ export default function DocumentSign() {
     // 이미지 요소 접근
     let imageElement: HTMLImageElement;
     
+    // 클릭된 요소 확인
+    console.log('클릭된 요소 타입:', event.target?.constructor.name);
+    
     // 클릭된 요소가 이미지인지 확인
     if (event.target instanceof HTMLImageElement) {
       imageElement = event.target as HTMLImageElement;
@@ -426,6 +429,17 @@ export default function DocumentSign() {
       imageElement = imgElement;
       console.log('컨테이너 내에서 이미지 요소를 찾았습니다.');
     }
+    
+    // 이미지 메타데이터 확인
+    console.log('이미지 정보:', {
+      naturalWidth: imageElement.naturalWidth,
+      naturalHeight: imageElement.naturalHeight,
+      clientWidth: imageElement.clientWidth,
+      clientHeight: imageElement.clientHeight,
+      offsetWidth: imageElement.offsetWidth,
+      offsetHeight: imageElement.offsetHeight,
+      src: imageElement.src
+    });
     
     // 이미지의 정확한 위치와 크기 정보 가져오기
     const rect = imageElement.getBoundingClientRect();
@@ -903,14 +917,7 @@ export default function DocumentSign() {
                   className="relative w-full h-[600px]"
                 >
                   {currentDocument.imageUrl && (
-                    <div className="w-full h-full flex items-center justify-center"
-                      onClick={(e) => {
-                        // 이벤트 버블링 방지
-                        e.stopPropagation();
-                        // 클릭 이벤트 직접 처리
-                        handleDocumentClick(e);
-                      }}
-                    >
+                    <div className="w-full h-full flex items-center justify-center">
                       <img 
                         src={`${currentDocument.imageUrl}`}
                         alt={`문서 ${currentDocIndex + 1}`}
@@ -919,8 +926,9 @@ export default function DocumentSign() {
                           maxHeight: '100%',
                           objectFit: 'contain'
                         }}
-                        className="bg-white"
+                        className="bg-white cursor-crosshair"
                         onClick={(e) => {
+                          console.log('이미지 클릭됨');
                           e.stopPropagation(); // 이벤트 버블링 방지
                           handleDocumentClick(e);
                         }}
