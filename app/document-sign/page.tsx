@@ -321,9 +321,9 @@ export default function DocumentSign() {
         addError('error', '서명 위치를 찾을 수 없습니다.', true, 3000);
         return;
       }
-      
-      // 현재 문서의 서명 위치 가져오기
-      const currentPositions = [...newDocuments[docIndex].signaturePositions];
+        
+        // 현재 문서의 서명 위치 가져오기
+        const currentPositions = [...newDocuments[docIndex].signaturePositions];
       
       // 해당 ID의 서명 위치 찾기
       const posIndex = currentPositions.findIndex(pos => pos.id === positionId);
@@ -333,18 +333,18 @@ export default function DocumentSign() {
         addError('error', '서명 위치를 찾을 수 없습니다.', true, 3000);
         return;
       }
-      
-      // 서명 위치 업데이트
+        
+        // 서명 위치 업데이트
       currentPositions[posIndex] = {
         ...currentPositions[posIndex],
         signed: true
       };
-      
-      // 문서 업데이트
-      newDocuments[docIndex] = {
-        ...newDocuments[docIndex],
+        
+        // 문서 업데이트
+        newDocuments[docIndex] = {
+          ...newDocuments[docIndex],
         signaturePositions: currentPositions
-      };
+        };
       
       // 문서 상태 업데이트
       setDocuments(newDocuments);
@@ -400,7 +400,7 @@ export default function DocumentSign() {
       console.log('이미 서명이 완료되어 추가 서명 필드를 생성할 수 없습니다.');
       return;
     }
-
+    
     // 이벤트 버블링 방지
     event.stopPropagation();
 
@@ -429,22 +429,20 @@ export default function DocumentSign() {
     const offsetY = event.clientY - rect.top;
     
     // 이미지의 화면 표시 크기와 원본 크기 비율 계산
-    const scaleX = imageElement.naturalWidth / imageElement.clientWidth;
-    const scaleY = imageElement.naturalHeight / imageElement.clientHeight;
+    const scaleX = imageElement.naturalWidth / rect.width;
+    const scaleY = imageElement.naturalHeight / rect.height;
     
     // 서명 필드 크기 (화면 표시 기준)
     const signatureWidth = 150; // 화면에 표시될 서명 너비
     const signatureHeight = 80; // 화면에 표시될 서명 높이
     
-    // 클릭한 지점을 중앙으로 하는 서명 필드 화면 좌표 계산
-    const centeredDisplayX = offsetX - (signatureWidth / 2);
-    const centeredDisplayY = offsetY - (signatureHeight / 2);
+    // 서명 필드가 클릭 위치의 중앙에 오도록 계산
+    const displayX = offsetX - (signatureWidth / 2);
+    const displayY = offsetY - (signatureHeight / 2);
     
     // 화면 표시 좌표가 이미지 경계를 벗어나지 않도록 조정
-    const imageWidth = imageElement.clientWidth;
-    const imageHeight = imageElement.clientHeight;
-    const adjustedDisplayX = Math.max(0, Math.min(centeredDisplayX, imageWidth - signatureWidth));
-    const adjustedDisplayY = Math.max(0, Math.min(centeredDisplayY, imageHeight - signatureHeight));
+    const adjustedDisplayX = Math.max(0, Math.min(displayX, rect.width - signatureWidth));
+    const adjustedDisplayY = Math.max(0, Math.min(displayY, rect.height - signatureHeight));
     
     // 원본 이미지 기준 좌표 계산 (서명 저장 및 렌더링에 사용)
     const originalX = Math.round(adjustedDisplayX * scaleX);
@@ -455,11 +453,11 @@ export default function DocumentSign() {
     // 디버깅 정보 출력
     console.log('클릭 이벤트 정보:');
     console.log(`- 이미지 실제 크기: ${imageElement.naturalWidth} x ${imageElement.naturalHeight}`);
-    console.log(`- 이미지 화면 크기: ${imageWidth} x ${imageHeight}`);
+    console.log(`- 이미지 화면 크기: ${rect.width} x ${rect.height}`);
     console.log(`- 비율: scaleX=${scaleX.toFixed(2)}, scaleY=${scaleY.toFixed(2)}`);
     console.log(`- 이미지 내 클릭 위치: ${offsetX.toFixed(2)}, ${offsetY.toFixed(2)}`);
-    console.log(`- 중앙 보정 위치: ${centeredDisplayX.toFixed(2)}, ${centeredDisplayY.toFixed(2)}`);
-    console.log(`- 조정된 화면 위치: ${adjustedDisplayX.toFixed(2)}, ${adjustedDisplayY.toFixed(2)}`);
+    console.log(`- 중앙 조정 위치: ${displayX.toFixed(2)}, ${displayY.toFixed(2)}`);
+    console.log(`- 경계 조정 위치: ${adjustedDisplayX.toFixed(2)}, ${adjustedDisplayY.toFixed(2)}`);
     console.log(`- 원본 이미지 기준 위치: ${originalX}, ${originalY}, ${originalWidth} x ${originalHeight}`);
     
     // 새로운 서명 위치 객체 생성
@@ -477,20 +475,20 @@ export default function DocumentSign() {
     };
     
     // 새로운 서명 위치 추가
-    const newDocuments = [...documents];
-    const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
-    
-    if (docIndex !== -1) {
-      newDocuments[docIndex].signaturePositions.push(newPosition);
-      setDocuments(newDocuments);
+      const newDocuments = [...documents];
+      const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
       
-      // 세션 스토리지 업데이트
-      try {
-        sessionStorage.setItem('signedDocuments', JSON.stringify(newDocuments));
+      if (docIndex !== -1) {
+        newDocuments[docIndex].signaturePositions.push(newPosition);
+        setDocuments(newDocuments);
+        
+        // 세션 스토리지 업데이트
+        try {
+          sessionStorage.setItem('signedDocuments', JSON.stringify(newDocuments));
         console.log('서명 필드 위치 저장 완료');
-      } catch (err) {
-        console.error('세션 스토리지 업데이트 오류:', err);
-      }
+        } catch (err) {
+          console.error('세션 스토리지 업데이트 오류:', err);
+        }
     } else {
       console.error(`문서 인덱스 ${currentDocIndex + 1}에 해당하는 문서를 찾을 수 없습니다.`);
       console.log('현재 문서 배열:', documents.map(doc => doc.id));
@@ -504,45 +502,45 @@ export default function DocumentSign() {
     console.log('서명 위치 삭제 시도:', positionId);
     
     // 모든 모드에서 서명 위치를 삭제할 수 있도록 수정
-    const updatedPositions = [...customSignaturePositions];
-    if (updatedPositions[currentDocIndex]) {
-      updatedPositions[currentDocIndex] = updatedPositions[currentDocIndex].filter(
-        pos => pos.id !== positionId
-      );
-      setCustomSignaturePositions(updatedPositions);
+      const updatedPositions = [...customSignaturePositions];
+      if (updatedPositions[currentDocIndex]) {
+        updatedPositions[currentDocIndex] = updatedPositions[currentDocIndex].filter(
+          pos => pos.id !== positionId
+        );
+        setCustomSignaturePositions(updatedPositions);
     }
-    
-    // 서명도 함께 삭제
+        
+        // 서명도 함께 삭제
     if (signaturePositions[positionId]) {
       const updatedSignaturePositions = { ...signaturePositions };
       delete updatedSignaturePositions[positionId];
       setSignaturePositions(updatedSignaturePositions);
     }
-    
-    // 문서 상태도 업데이트
-    const newDocuments = [...documents];
-    const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
-    
-    if (docIndex !== -1) {
-      newDocuments[docIndex] = {
-        ...newDocuments[docIndex],
-        signaturePositions: newDocuments[docIndex].signaturePositions.filter(
-          pos => pos.id !== positionId
-        )
-      };
-      
-      setDocuments(newDocuments);
-      
-      // 세션 스토리지 업데이트
-      try {
-        sessionStorage.setItem('signedDocuments', JSON.stringify(newDocuments));
+          
+          // 문서 상태도 업데이트
+          const newDocuments = [...documents];
+          const docIndex = newDocuments.findIndex(doc => doc.id === currentDocIndex + 1);
+          
+          if (docIndex !== -1) {
+            newDocuments[docIndex] = {
+              ...newDocuments[docIndex],
+              signaturePositions: newDocuments[docIndex].signaturePositions.filter(
+                pos => pos.id !== positionId
+              )
+            };
+            
+            setDocuments(newDocuments);
+            
+            // 세션 스토리지 업데이트
+            try {
+              sessionStorage.setItem('signedDocuments', JSON.stringify(newDocuments));
         sessionStorage.setItem('signaturePositions', JSON.stringify(signaturePositions));
-      } catch (err) {
-        console.error('세션 스토리지 업데이트 오류:', err);
-      }
-    }
-    
-    addError('info', '서명 위치가 삭제되었습니다.', true, 2000);
+            } catch (err) {
+              console.error('세션 스토리지 업데이트 오류:', err);
+          }
+        }
+        
+        addError('info', '서명 위치가 삭제되었습니다.', true, 2000);
   };
   
   // 서명 위치 드래그 시작
@@ -648,7 +646,7 @@ export default function DocumentSign() {
       // 모든 문서가 서명되었는지 확인
       const allDocumentsSigned = documents.every((doc) => {
         const positions = doc.signaturePositions;
-        return positions.length > 0 && positions.some((pos) => signaturePositions[pos.id]);
+        return positions.length > 0 && positions.some((pos) => !!signaturePositions[pos.id]);
       });
       
       if (!allDocumentsSigned) {
@@ -674,18 +672,50 @@ export default function DocumentSign() {
       // 저장할 문서 정보 생성
       const documentsToSave = documents.map((doc) => {
         // 문서의 서명 위치 정보 처리
-        const updatedPositions = doc.signaturePositions.map((pos) => ({
-          ...pos,
-          signed: signaturePositions[pos.id] || false
-        }));
+        const updatedPositions = doc.signaturePositions.map((pos) => {
+          // signed 상태 명시적으로 업데이트
+          const isSigned = !!signaturePositions[pos.id];
+          
+          // 원본 좌표와 디스플레이 좌표 모두 포함해서 저장
+          return {
+            ...pos,
+            signed: isSigned,
+            // 원본 좌표 확인 (디버깅)
+            x: pos.x,
+            y: pos.y,
+            width: pos.width,
+            height: pos.height,
+            // 디스플레이 좌표도 함께 저장
+            displayX: pos.displayX || pos.x,
+            displayY: pos.displayY || pos.y,
+            displayWidth: pos.displayWidth || pos.width,
+            displayHeight: pos.displayHeight || pos.height
+          };
+        });
         
         console.log(`문서 ${doc.id}의 서명 위치 수: ${updatedPositions.length}`);
         console.log(`서명된 위치 수: ${updatedPositions.filter(pos => pos.signed).length}`);
+        console.log(`문서 ${doc.id}의 서명 위치 데이터:`, JSON.stringify(updatedPositions.filter(pos => pos.signed), null, 2));
+        
+        // 이미지 정보 추가
+        const imgElement = document.querySelector(`img[src="${doc.imageUrl}"]`) as HTMLImageElement;
+        let naturalWidth = 0;
+        let naturalHeight = 0;
+        
+        if (imgElement) {
+          naturalWidth = imgElement.naturalWidth;
+          naturalHeight = imgElement.naturalHeight;
+          console.log(`문서 ${doc.id} 이미지 크기: ${naturalWidth}x${naturalHeight}`);
+        } else {
+          console.warn(`문서 ${doc.id}의 이미지 요소를 찾을 수 없습니다. 이미지 크기 정보가 누락될 수 있습니다.`);
+        }
         
         // 문서 객체 복사 후 서명 위치 정보 추가
         return {
           ...doc,
-          signaturePositions: updatedPositions
+          signaturePositions: updatedPositions,
+          naturalWidth,
+          naturalHeight
         };
       });
       
@@ -695,6 +725,10 @@ export default function DocumentSign() {
       try {
         localStorage.setItem('signedDocumentsForDownload', JSON.stringify(documentsToSave));
         localStorage.setItem('userSignatureForDownload', signatureData);
+        
+        // 추가: 세션 스토리지에도 저장 (백업용)
+        sessionStorage.setItem('signedDocumentsForDownload', JSON.stringify(documentsToSave));
+        
         console.log('서명된 문서 정보 저장 완료');
         return true;
       } catch (storageError) {
@@ -921,8 +955,8 @@ export default function DocumentSign() {
                       }}
                       onClick={(e) => {
                         // 서명 필드 클릭시 항상 삭제
-                        e.stopPropagation();
-                        removeSignaturePosition(position.id);
+                          e.stopPropagation();
+                          removeSignaturePosition(position.id);
                       }}
                       onMouseDown={(e) => handleDragStart(e, position.id)}
                     >
@@ -1028,8 +1062,8 @@ export default function DocumentSign() {
                       }}
                       onClick={(e) => {
                         // 서명 필드 클릭시 항상 삭제
-                        e.stopPropagation();
-                        removeSignaturePosition(position.id);
+                          e.stopPropagation();
+                          removeSignaturePosition(position.id);
                       }}
                       onMouseDown={(e) => handleDragStart(e, position.id)}
                     >
