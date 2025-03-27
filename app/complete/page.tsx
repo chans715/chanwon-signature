@@ -734,13 +734,13 @@ export default function Complete() {
             setIsGeneratingPdf(false);
             setSuccess(`${selectedDocIds.length}개 문서 다운로드를 완료했습니다.`);
           }, 100);
-        }).catch(err => {
+        }).catch((err: Error) => {
           console.error('압축 파일 생성 실패:', err);
           setIsGeneratingPdf(false);
           setError('압축 파일 생성 중 오류가 발생했습니다.');
         });
       }
-    }).catch(err => {
+    }).catch((err: Error) => {
       console.error('JSZip 라이브러리 로드 실패:', err);
       setIsGeneratingPdf(false);
       setError('다운로드 모듈을 로드하지 못했습니다.');
