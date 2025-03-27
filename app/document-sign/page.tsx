@@ -278,9 +278,9 @@ export default function DocumentSign() {
     loadSignature();
   }, [addError, router]);
   
-  // 서명 위치에 서명 추가하기
+  // 서명 위치에 서명 추가하기 함수 개선
   const addSignature = (positionId: string) => {
-    console.log('서명 추가 시도:', positionId, '문서 인덱스:', currentDocIndex);
+    console.log('서명 추가 시도 - 위치 ID:', positionId, '문서 인덱스:', currentDocIndex);
     
     // 세션 스토리지에서 서명 가져오기
     const signatureData = sessionStorage.getItem('userSignature');
@@ -308,43 +308,33 @@ export default function DocumentSign() {
       // 문서 상태 업데이트 준비
       const newDocuments = [...documents];
       
-      // 문서 인덱스와 ID 확인용 디버깅
-      console.log(`서명 추가 중 - 현재 문서 인덱스: ${currentDocIndex}`);
-      console.log(`서명 추가 중 - 문서 목록:`, newDocuments.map(d => `ID: ${d.id}`));
+      // 현재 문서의 실제 인덱스 찾기 (ID 기반)
+      const docIndex = newDocuments.findIndex(doc => doc.id === currentDocument.id);
+      console.log(`서명 추가 - 현재 문서 ID: ${currentDocument.id}, 검색된 문서 인덱스: ${docIndex}`);
       
-      // 문서 ID가 아닌 인덱스로 문서 찾기
-      let docIndex = currentDocIndex;
-      
-      // 인덱스 범위 체크
-      if (docIndex < 0 || docIndex >= newDocuments.length) {
-        console.error(`유효하지 않은 문서 인덱스: ${docIndex}`);
-        addError('error', '서명 위치를 찾을 수 없습니다.', true, 3000);
+      if (docIndex === -1) {
+        console.error(`문서 ID ${currentDocument.id}에 해당하는 문서를 찾을 수 없습니다.`);
+        addError('error', '서명 위치를 업데이트할 문서를 찾을 수 없습니다.', true, 3000);
         return;
       }
-        
-        // 현재 문서의 서명 위치 가져오기
-        const currentPositions = [...newDocuments[docIndex].signaturePositions];
       
-      // 해당 ID의 서명 위치 찾기
-      const posIndex = currentPositions.findIndex(pos => pos.id === positionId);
+      // 서명 위치 배열에서 해당 ID의 위치 찾기
+      const posIndex = newDocuments[docIndex].signaturePositions.findIndex(pos => pos.id === positionId);
+      console.log(`서명 위치 ID: ${positionId}, 위치 인덱스: ${posIndex}`);
       
       if (posIndex === -1) {
         console.error(`서명 위치 ID를 찾을 수 없습니다: ${positionId}`);
         addError('error', '서명 위치를 찾을 수 없습니다.', true, 3000);
         return;
       }
-        
-        // 서명 위치 업데이트
-      currentPositions[posIndex] = {
-        ...currentPositions[posIndex],
+      
+      // 서명 위치 업데이트
+      newDocuments[docIndex].signaturePositions[posIndex] = {
+        ...newDocuments[docIndex].signaturePositions[posIndex],
         signed: true
       };
-        
-        // 문서 업데이트
-        newDocuments[docIndex] = {
-          ...newDocuments[docIndex],
-        signaturePositions: currentPositions
-        };
+      
+      console.log('서명된 위치 정보:', newDocuments[docIndex].signaturePositions[posIndex]);
       
       // 문서 상태 업데이트
       setDocuments(newDocuments);
@@ -363,34 +353,42 @@ export default function DocumentSign() {
       }
       
       addError('success', '서명이 추가되었습니다.', true, 2000);
+      
+      // 서명 후 서명 완료 상태 확인 - 디버깅용
+      setTimeout(() => {
+        console.log('서명 후 문서 상태 확인:');
+        console.log('현재 문서 인덱스:', currentDocIndex);
+        console.log('현재 문서:', currentDocument);
+        console.log('서명 완료 여부:', isCurrentDocumentFullySigned());
+      }, 500);
+      
     } catch (error) {
       console.error('서명 추가 중 오류:', error);
       addError('error', '서명 추가 중 오류가 발생했습니다.', true, 3000);
     }
   };
   
-  // 현재 문서의 모든 위치에 서명이 되었는지 확인
+  // 현재 문서의 모든 위치에 서명이 되었는지 확인 - 수정
   const isCurrentDocumentFullySigned = () => {
-    if (!currentSignaturePositions || currentSignaturePositions.length === 0) {
-      return true; // 서명 위치가 없으면 이미 완료된 것으로 간주
+    console.log('서명 완료 확인 - 현재 문서 인덱스:', currentDocIndex);
+    console.log('서명 완료 확인 - 현재 문서 ID:', currentDocument.id);
+    
+    if (!currentDocument || !currentDocument.signaturePositions) {
+      console.log('현재 문서 정보가 없거나 서명 위치가 없음');
+      return false; // 문서 정보가 없으면 미완료 상태로 간주
     }
     
-    // 현재 문서의 signaturePositions 배열에서 signed 속성 확인
-    const docIndex = documents.findIndex(doc => doc.id === currentDocIndex + 1);
-    
-    if (docIndex !== -1) {
-      const signedPositionsInDoc = documents[docIndex].signaturePositions;
-      
-      // 현재 문서의 모든 서명 위치가 signed 상태인지 확인
-      const result = signedPositionsInDoc.length > 0 && signedPositionsInDoc.every(pos => pos.signed === true);
-      
-      console.log(`문서 ${currentDocIndex + 1} 서명 완료 여부:`, result, signedPositionsInDoc);
-      
-      return result;
+    if (currentDocument.signaturePositions.length === 0) {
+      console.log('서명 위치가 없음, 서명 완료로 간주');
+      return true; // 서명 위치가 없으면 완료된 것으로 간주
     }
     
-    // 문서가 아직 documents 배열에 없는 경우 false 반환
-    return false;
+    // 현재 문서의 모든 서명 위치 확인
+    const allPositionsSigned = currentDocument.signaturePositions.every(pos => pos.signed === true);
+    console.log('모든 서명 위치 완료 여부:', allPositionsSigned);
+    console.log('서명 위치 상태:', currentDocument.signaturePositions);
+    
+    return allPositionsSigned;
   };
   
   // handleDocumentClick 함수 개선
@@ -709,7 +707,7 @@ export default function DocumentSign() {
       if (!allDocumentsSigned) {
         console.warn('모든 문서에 서명을 완료하지 않았습니다.');
         if (!window.confirm('일부 문서에 서명이 완료되지 않았습니다. 계속 진행하시겠습니까?')) {
-          return;
+          return false;
         }
       }
       
@@ -720,7 +718,7 @@ export default function DocumentSign() {
         if (!signature) {
           console.error('서명 이미지를 찾을 수 없습니다.');
           addError('error', '서명 이미지를 찾을 수 없습니다. 서명을 다시 작성해주세요.', true, 5000);
-          return;
+          return false;
         }
       }
       
@@ -771,6 +769,7 @@ export default function DocumentSign() {
         localStorage.setItem('documentsSignedDate', new Date().toISOString());
         
         console.log('서명 문서 및 서명 이미지를 로컬 스토리지에 저장했습니다.');
+        return true;
       } catch (storageError) {
         console.error('로컬 스토리지 저장 오류:', storageError);
         
@@ -781,58 +780,55 @@ export default function DocumentSign() {
           sessionStorage.setItem('documentsSignedDate', new Date().toISOString());
           
           console.log('서명 문서 및 서명 이미지를 세션 스토리지에 저장했습니다.');
+          return true;
         } catch (sessionError) {
           console.error('세션 스토리지 저장 오류:', sessionError);
           addError('error', '서명 문서를 저장할 수 없습니다. 브라우저 스토리지 공간이 부족할 수 있습니다.', true, 5000);
-          return;
+          return false;
         }
       }
-      
-      // 성공 메시지
-      addError('success', '서명 문서가 저장되었습니다. 다운로드 페이지로 이동합니다.', true, 3000);
-      
-      // 다운로드 페이지로 이동
-      setTimeout(() => {
-        router.push('/complete');
-      }, 1000);
     } catch (error) {
       console.error('서명 문서 저장 중 오류:', error);
       addError('error', '서명 문서 저장 중 오류가 발생했습니다.', true, 5000);
+      return false;
     }
   };
   
-  // goToNextDocument 함수 간소화
+  // goToNextDocument 함수 수정
   const goToNextDocument = () => {
+    console.log('다음 문서로 이동 시도:', currentDocIndex, '총 문서:', totalDocuments);
+    
     if (!isCurrentDocumentFullySigned()) {
+      console.log('현재 문서 서명이 완료되지 않음');
       addError('warning', '모든 서명 위치에 서명을 추가해주세요.', true, 3000);
       return;
     }
     
     // 로컬 스토리지에 저장
-    saveSignedDocumentForDownload();
+    const saveResult = saveSignedDocumentForDownload();
+    console.log('문서 저장 결과:', saveResult);
     
     if (currentDocIndex < totalDocuments - 1) {
+      // 다음 문서로 이동
       setCurrentDocIndex(prev => prev + 1);
       addError('info', `${currentDocIndex + 2}번째 문서로 이동합니다.`, true, 2000);
     } else {
       // 모든 문서에 서명 완료
-      addError('success', '모든 문서에 서명이 완료되었습니다.', true, 3000);
+      console.log('모든 문서 서명 완료, 신분증 업로드 페이지로 이동');
+      addError('success', '모든 문서에 서명이 완료되었습니다. 신분증 업로드 페이지로 이동합니다.', true, 3000);
       
-      // 서명 완료 정보 저장 (간소화)
+      // 서명 완료 정보 저장
       sessionStorage.setItem('documentsSignedCount', totalDocuments.toString());
       sessionStorage.setItem('documentsSignedDate', new Date().toISOString());
       
-      // 서명된 문서 정보 저장 (간소화)
+      // 서명된 문서 정보 최종 저장
       const signedDocuments = documents.map(doc => {
         return {
           id: doc.id,
           imageUrl: doc.imageUrl,
           pdfUrl: doc.pdfUrl,
           type: doc.type,
-          signaturePositions: doc.signaturePositions.map(pos => ({
-            ...pos,
-            signed: signaturePositions[pos.id] || false
-          }))
+          signaturePositions: doc.signaturePositions
         };
       });
       
@@ -843,7 +839,9 @@ export default function DocumentSign() {
       localStorage.setItem('hasSignature', 'true');
       
       // 신분증 업로드 페이지로 이동
-      router.push('/id-card');
+      setTimeout(() => {
+        router.push('/id-card');
+      }, 1000);
     }
   };
   
@@ -868,8 +866,10 @@ export default function DocumentSign() {
     addError('info', isCustomMode ? '기본 서명 모드로 전환합니다.' : '커스텀 서명 모드로 전환합니다. 문서를 클릭하여 서명 위치를 추가하세요.', true, 3000);
   };
   
-  // 서명 핸들러
+  // 서명 핸들러 - 수정
   const handleSignatureButtonClick = (positionId: string) => {
+    console.log('서명 추가 클릭:', positionId, '현재 문서:', currentDocIndex);
+    
     if (!signatureImage) {
       addError('info', '서명을 먼저 입력해주세요.', true, 2000);
       setIsSignatureModalOpen(true);
